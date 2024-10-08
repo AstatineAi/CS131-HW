@@ -150,13 +150,22 @@ let ( >=. ) a b = (Int64.compare a b) >= 0
 
 (* Interpret a condition code with respect to the given flags. *)
 (* !!! Check the Specification for Help *)
-let interp_cnd {fo; fs; fz} : cnd -> bool = fun x -> failwith "interp_cnd unimplemented"
+let interp_cnd {fo; fs; fz} : cnd -> bool = fun cond_inst ->
+  match cond_inst with
+  | Eq -> fz
+  | Neq -> not fz
+  | Lt -> fs <> fo
+  | Le -> (fs <> fo) || fz
+  | Gt -> fs = fo && not fz
+  | Ge -> fs = fo
 
 
 (* Maps an X86lite address into Some OCaml array index,
    or None if the address is not within the legal address space. *)
 let map_addr (addr:quad) : int option =
-  failwith "map_addr not implemented"
+  let open Int64 in
+  let i = to_int (sub addr mem_bot) in
+  if i < 0 || i >= mem_size then None else Some i
 
 (* Your simulator should raise this exception if it tries to read from or
    store to an address not within the valid address space. *)
@@ -164,7 +173,9 @@ exception X86lite_segfault
 
 (* Raise X86lite_segfault when addr is invalid. *)
 let map_addr_segfault (addr:quad) : int =
-  failwith "map_addr_segfault not implemented"
+  match map_addr addr with
+  | Some i -> if i mod 8 <> 0 then raise X86lite_segfault else i
+  | None -> raise X86lite_segfault
 
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
@@ -180,14 +191,22 @@ let map_addr_segfault (addr:quad) : int =
 *)
 
 let readquad (m:mach) (addr:quad) : quad =
-  failwith "readquad not implemented"
+  let i = map_addr_segfault addr in
+  let sbytes = List.init 8 (fun n -> m.mem.(i + n)) in
+    int64_of_sbytes sbytes
 
 
 let writequad (m:mach) (addr:quad) (w:quad) : unit =
-  failwith "writequad not implemented"
+  let i = map_addr_segfault addr in
+  let sbytes = sbytes_of_int64 w in
+    List.iteri (fun n b -> m.mem.(i + n) <- b) sbytes
 
 let fetchins (m:mach) (addr:quad) : ins =
-  failwith "fetchins not implemented"
+  let i = map_addr_segfault addr in
+  match m.mem.(i) with
+  | InsB0 ins -> ins
+  | _ -> raise X86lite_segfault
+
 
 (* Compute the instruction result.
  * NOTE: See int64_overflow.ml for the definition of the return type
