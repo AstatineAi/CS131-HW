@@ -251,8 +251,9 @@ let interp_operands (m : mach) : ins -> int64 list =
   failwith "interp_operands not implemented"
 ;;
 
+(* NOTE: Your simulator is not required to detect invalid operands. *)
 let validate_operands : ins -> unit = function
-  | _ -> failwith "validate_operands not implemented"
+  | _ -> ()
 ;;
 
 let rec crack (is : ins) : ins list =
