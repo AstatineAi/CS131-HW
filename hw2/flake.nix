@@ -21,6 +21,8 @@
             dune_3
             num
             ocaml
+            ocaml-lsp
+            ocamlformat_0_26_1
             utop
           ]);
       };
