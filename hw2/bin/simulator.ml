@@ -273,8 +273,6 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | J _, Imm (Lit imm) :: _
   | Cmpq, Imm (Lit imm) :: _
   | Set _, Imm (Lit imm) :: _ -> [ imm ]
-  | Incq, Reg reg :: _
-  | Decq, Reg reg :: _
   | Negq, Reg reg :: _
   | Notq, Reg reg :: _
   | Movq, Reg reg :: _
@@ -293,8 +291,6 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | J _, Reg reg :: _
   | Cmpq, Reg reg :: _
   | Set _, Reg reg :: _ -> [ m.regs.(rind reg) ]
-  | Incq, Ind1 (Lit imm) :: _
-  | Decq, Ind1 (Lit imm) :: _
   | Negq, Ind1 (Lit imm) :: _
   | Notq, Ind1 (Lit imm) :: _
   | Movq, Ind1 (Lit imm) :: _
@@ -307,8 +303,6 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | J _, Ind1 (Lit imm) :: _
   | Cmpq, Ind1 (Lit imm) :: _
   | Set _, Ind1 (Lit imm) :: _ -> [ readquad m imm ]
-  | Incq, Ind2 reg :: _
-  | Decq, Ind2 reg :: _
   | Negq, Ind2 reg :: _
   | Notq, Ind2 reg :: _
   | Movq, Ind2 reg :: _
@@ -321,8 +315,6 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | J _, Ind2 reg :: _
   | Cmpq, Ind2 reg :: _
   | Set _, Ind2 reg :: _ -> [ readquad m m.regs.(rind reg) ]
-  | Incq, Ind3 (Lit disp, base) :: _
-  | Decq, Ind3 (Lit disp, base) :: _
   | Negq, Ind3 (Lit disp, base) :: _
   | Notq, Ind3 (Lit disp, base) :: _
   | Movq, Ind3 (Lit disp, base) :: _
@@ -349,6 +341,8 @@ let rec crack (is : ins) : ins list =
   match is with
   | Pushq, [ src ] -> [ Subq, [ ~$8; ~%Rsp ]; Movq, [ src; Ind2 Rsp ] ]
   | Popq, [ dest ] -> [ Movq, [ Ind2 Rsp; dest ]; Addq, [ ~$8; ~%Rsp ] ]
+  | Incq, [ dest ] -> [ Addq, [ ~$1; dest ] ]
+  | Decq, [ dest ] -> [ Subq, [ ~$1; dest ] ]
   | Jmp, [ src ] -> [ Movq, [ src; ~%Rip ] ]
   | Callq, [ src ] -> crack (Pushq, [ ~%Rip ]) @ [ Movq, [ src; ~%Rip ] ]
   | Retq, [] -> crack (Popq, [ ~%Rip ])
