@@ -260,7 +260,7 @@ let rec crack (is : ins) : ins list =
   match is with
   | Pushq, [ src ] -> [ Subq, [ ~$8; ~%Rsp ]; Movq, [ src; Ind2 Rsp ] ]
   | Popq, [ dest ] -> [ Movq, [ Ind2 Rsp; dest ]; Addq, [ ~$8; ~%Rsp ] ]
-  | Callq, [ src ] -> List.concat [ crack (Pushq, [ ~%Rip ]); [ Movq, [ src; ~%Rip ] ] ]
+  | Callq, [ src ] -> crack (Pushq, [ ~%Rip ]) @ [ Movq, [ src; ~%Rip ] ]
   | _ -> [ is ]
 ;;
 
