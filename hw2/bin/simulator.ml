@@ -236,7 +236,9 @@ let crack : ins -> ins list = function
  
 (* TODO: double check against spec *)
 let set_flags (m:mach) (op:opcode) (ws: quad list) (w : Int64_overflow.t) : unit =
-  failwith "set_flags not implemented"
+  m.flags.fo <- w.overflow;
+  m.flags.fs <- w.value <. 0L;
+  m.flags.fz <- w.value = 0L
 
 let step (m:mach) : unit =
   (* execute an instruction *)
@@ -298,10 +300,12 @@ exception Redefined_sym of lbl
   HINT: List.fold_left and List.fold_right are your friends.
  *)
 let is_size (is: ins list): quad = 
-  failwith "is_size not implemented"
+  List.fold_left (fun acc i -> acc +. ins_size) 0L is
 
 let ds_size (ds: data list): quad = 
-  failwith "ds_size not implemented"
+  List.fold_left (fun acc d -> acc +. match d with
+    | Asciz s -> Int64.of_int (String.length s + 1)
+    | Quad _ -> 8L) 0L ds
 
 let assemble (p:prog) : exec =
   failwith "assemble unimplemented"
