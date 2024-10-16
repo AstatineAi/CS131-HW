@@ -230,8 +230,13 @@ let validate_operands : ins -> unit = function
   | _ -> failwith "validate_operands not implemented"
 
 
-let crack : ins -> ins list = function
-  | _ -> failwith "crack not implemented"
+let rec crack (is : ins) : ins list =
+  let open Asm in
+  match is with
+  | Pushq, [ src ] -> [ Subq, [ ~$8; ~%Rsp ]; Movq, [ src; Ind2 Rsp ] ]
+  | Popq, [ dest ] -> [ Movq, [ Ind2 Rsp; dest ]; Addq, [ ~$8; ~%Rsp ] ]
+  | Callq, [ src ] -> List.concat [ crack (Pushq, [ ~%Rip ]); [ Movq, [ src; ~%Rip ] ] ]
+  | _ -> [ is ]
 
  
 (* TODO: double check against spec *)
