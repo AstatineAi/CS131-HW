@@ -140,7 +140,15 @@ let sbytes_of_ins ((op, args) : ins) : sbyte list =
     | _ -> ()
   in
   List.iter check args;
-  [ InsB0 (op, args); InsFrag; InsFrag; InsFrag; InsFrag; InsFrag; InsFrag; InsFrag ]
+  [ InsB0 (op, args)
+  ; InsFrag
+  ; InsFrag
+  ; InsFrag
+  ; InsFrag
+  ; InsFrag
+  ; InsFrag
+  ; InsFrag
+  ]
 ;;
 
 (* Serialize a data element to sbytes *)
@@ -234,7 +242,8 @@ let fetchins (m : mach) (addr : quad) : ins =
 (* Compute the instruction result.
  * NOTE: See int64_overflow.ml for the definition of the return type
 *  Int64_overflow.t. *)
-let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t =
+let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
+  =
   let open Int64 in
   let open Int64_overflow in
   match o, args with
@@ -266,7 +275,9 @@ let rec crack (is : ins) : ins list =
 ;;
 
 (* TODO: double check against spec *)
-let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t) : unit =
+let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
+  : unit
+  =
   m.flags.fo <- w.overflow;
   m.flags.fs <- w.value <. 0L;
   m.flags.fz <- w.value = 0L
@@ -333,7 +344,9 @@ exception Redefined_sym of lbl
 
    HINT: List.fold_left and List.fold_right are your friends.
 *)
-let is_size (is : ins list) : quad = List.fold_left (fun acc i -> acc +. ins_size) 0L is
+let is_size (is : ins list) : quad =
+  List.fold_left (fun acc i -> acc +. ins_size) 0L is
+;;
 
 let ds_size (ds : data list) : quad =
   List.fold_left
