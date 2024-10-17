@@ -247,13 +247,15 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   let open Int64 in
   let open Int64_overflow in
   match o, args with
+  | Leaq, [ addr ] -> ok addr
   | Movq, [ src ] -> ok src
   | _ -> failwith "interp_opcode not implemented"
 ;;
 
 (** Update machine state with instruction results. *)
 let ins_writeback (m : mach) : ins -> int64 -> unit = function
-  | Movq, [ _; Reg reg ] -> fun x -> m.regs.(rind reg) <- x
+  | Leaq, [ _; Reg reg ] | Movq, [ _; Reg reg ] ->
+    fun x -> m.regs.(rind reg) <- x
   | Movq, [ _; Ind1 (Lit imm) ] -> fun x -> writequad m imm x
   | Movq, [ _; Ind2 reg ] -> fun x -> writequad m m.regs.(rind reg) x
   | Movq, [ _; Ind3 (Lit disp, base) ] ->
@@ -263,6 +265,9 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
 
 (* mem addr ---> mem array index *)
 let interp_operands (m : mach) : ins -> int64 list = function
+  | Leaq, [ Ind1 (Lit imm); _ ] -> [ imm ]
+  | Leaq, [ Ind2 reg; _ ] -> [ m.regs.(rind reg) ]
+  | Leaq, [ Ind3 (Lit disp, base); _ ] -> [ m.regs.(rind base) +. disp ]
   | Movq, [ Imm (Lit imm); _ ] -> [ imm ]
   | Movq, [ Reg reg; _ ] -> [ m.regs.(rind reg) ]
   | Movq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
@@ -295,7 +300,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   : unit
   =
   match op with
-  | Movq -> ()
+  | Leaq | Movq -> ()
   | _ -> raise X86lite_segfault
 ;;
 
