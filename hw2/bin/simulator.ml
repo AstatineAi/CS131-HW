@@ -250,7 +250,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Addq, [ src; dest ] -> add dest src
   | Andq, [ src; dest ] -> ok @@ logand dest src
   | Imulq, [ src; dest ] -> mul dest src
-  | Leaq, [ addr; _ ] -> ok addr
+  | Leaq, [ addr ] -> ok addr
   | Movq, [ src; _ ] -> ok src
   | Negq, [ dest ] -> neg dest
   | Notq, [ dest ] -> ok @@ lognot dest
@@ -316,7 +316,7 @@ let read_operand (m : mach) (opnd : operand) : int64 =
 
 (* mem addr ---> mem array index *)
 let interp_operands (m : mach) : ins -> int64 list = function
-  | Leaq, operands -> List.map (read_ind m) operands
+  | Leaq, [ addr; _ ] -> [ read_ind m addr ]
   | Movq, operands
   | Addq, operands
   | Cmpq, operands
