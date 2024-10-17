@@ -248,6 +248,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   let open Int64_overflow in
   match o, args with
   | Addq, [ src; dest ] -> add dest src
+  | Andq, [ src; dest ] -> ok @@ logand dest src
   | Imulq, [ src; dest ] -> mul dest src
   | Leaq, [ addr ] -> ok addr
   | Movq, [ src ] -> ok src
@@ -262,6 +263,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
 (** Update machine state with instruction results. *)
 let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Addq, [ _; Reg reg ]
+  | Andq, [ _; Reg reg ]
   | Imulq, [ _; Reg reg ]
   | Leaq, [ _; Reg reg ]
   | Movq, [ _; Reg reg ]
@@ -271,6 +273,7 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Negq, [ Reg reg ]
   | Notq, [ Reg reg ] -> fun x -> m.regs.(rind reg) <- x
   | Addq, [ _; Ind1 (Lit imm) ]
+  | Andq, [ _; Ind1 (Lit imm) ]
   | Movq, [ _; Ind1 (Lit imm) ]
   | Orq, [ _; Ind1 (Lit imm) ]
   | Subq, [ _; Ind1 (Lit imm) ]
@@ -278,6 +281,7 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Negq, [ Ind1 (Lit imm) ]
   | Notq, [ Ind1 (Lit imm) ] -> fun x -> writequad m imm x
   | Addq, [ _; Ind2 reg ]
+  | Andq, [ _; Ind2 reg ]
   | Movq, [ _; Ind2 reg ]
   | Orq, [ _; Ind2 reg ]
   | Subq, [ _; Ind2 reg ]
@@ -285,6 +289,7 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Negq, [ Ind2 reg ]
   | Notq, [ Ind2 reg ] -> fun x -> writequad m m.regs.(rind reg) x
   | Addq, [ _; Ind3 (Lit disp, base) ]
+  | Andq, [ _; Ind3 (Lit disp, base) ]
   | Movq, [ _; Ind3 (Lit disp, base) ]
   | Orq, [ _; Ind3 (Lit disp, base) ]
   | Subq, [ _; Ind3 (Lit disp, base) ]
@@ -301,12 +306,14 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Leaq, [ Ind2 reg; _ ] -> [ m.regs.(rind reg) ]
   | Leaq, [ Ind3 (Lit disp, base); _ ] -> [ m.regs.(rind base) +. disp ]
   | Addq, [ Imm (Lit imm); _ ]
+  | Andq, [ Imm (Lit imm); _ ]
   | Imulq, [ Imm (Lit imm); _ ]
   | Movq, [ Imm (Lit imm); _ ]
   | Orq, [ Imm (Lit imm); _ ]
   | Subq, [ Imm (Lit imm); _ ]
   | Xorq, [ Imm (Lit imm); _ ] -> [ imm ]
   | Addq, [ Reg reg; _ ]
+  | Andq, [ Reg reg; _ ]
   | Imulq, [ Reg reg; _ ]
   | Movq, [ Reg reg; _ ]
   | Orq, [ Reg reg; _ ]
@@ -315,6 +322,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Negq, [ Reg reg ]
   | Notq, [ Reg reg ] -> [ m.regs.(rind reg) ]
   | Addq, [ Ind1 (Lit imm); _ ]
+  | Andq, [ Ind1 (Lit imm); _ ]
   | Imulq, [ Ind1 (Lit imm); _ ]
   | Movq, [ Ind1 (Lit imm); _ ]
   | Orq, [ Ind1 (Lit imm); _ ]
@@ -323,6 +331,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Negq, [ Ind1 (Lit imm) ]
   | Notq, [ Ind1 (Lit imm) ] -> [ readquad m imm ]
   | Addq, [ Ind2 reg; _ ]
+  | Andq, [ Ind2 reg; _ ]
   | Imulq, [ Ind2 reg; _ ]
   | Movq, [ Ind2 reg; _ ]
   | Orq, [ Ind2 reg; _ ]
@@ -331,6 +340,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Negq, [ Ind2 reg ]
   | Notq, [ Ind2 reg ] -> [ readquad m m.regs.(rind reg) ]
   | Addq, [ Ind3 (Lit disp, base); _ ]
+  | Andq, [ Ind3 (Lit disp, base); _ ]
   | Imulq, [ Ind3 (Lit disp, base); _ ]
   | Movq, [ Ind3 (Lit disp, base); _ ]
   | Orq, [ Ind3 (Lit disp, base); _ ]
@@ -367,6 +377,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   match op with
   | Leaq | Movq | Notq -> ()
   | Addq
+  | Andq
   | Negq
   | Orq
   | Subq
