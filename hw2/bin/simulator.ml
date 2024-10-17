@@ -285,35 +285,31 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
 
 (* mem addr ---> mem array index *)
 let interp_operands (m : mach) : ins -> int64 list = function
-  | Addq, [ Imm (Lit imm); _ ] -> [ imm ]
-  | Addq, [ Reg reg; _ ] -> [ m.regs.(rind reg) ]
-  | Addq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
-  | Addq, [ Ind2 reg; _ ] -> [ readquad m m.regs.(rind reg) ]
-  | Addq, [ Ind3 (Lit disp, base); _ ] ->
-    [ readquad m (m.regs.(rind base) +. disp) ]
   | Leaq, [ Ind1 (Lit imm); _ ] -> [ imm ]
   | Leaq, [ Ind2 reg; _ ] -> [ m.regs.(rind reg) ]
   | Leaq, [ Ind3 (Lit disp, base); _ ] -> [ m.regs.(rind base) +. disp ]
-  | Movq, [ Imm (Lit imm); _ ] -> [ imm ]
-  | Movq, [ Reg reg; _ ] -> [ m.regs.(rind reg) ]
-  | Movq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
-  | Movq, [ Ind2 reg; _ ] -> [ readquad m m.regs.(rind reg) ]
-  | Movq, [ Ind3 (Lit disp, base); _ ] ->
-    [ readquad m (m.regs.(rind base) +. disp) ]
+  | Addq, [ Imm (Lit imm); _ ]
+  | Movq, [ Imm (Lit imm); _ ]
   | Subq, [ Imm (Lit imm); _ ] -> [ imm ]
-  | Subq, [ Reg reg; _ ] -> [ m.regs.(rind reg) ]
-  | Subq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
-  | Subq, [ Ind2 reg; _ ] -> [ readquad m m.regs.(rind reg) ]
-  | Subq, [ Ind3 (Lit disp, base); _ ] ->
-    [ readquad m (m.regs.(rind base) +. disp) ]
-  | Negq, [ Reg reg ] -> [ m.regs.(rind reg) ]
-  | Negq, [ Ind1 (Lit imm) ] -> [ readquad m imm ]
-  | Negq, [ Ind2 reg ] -> [ readquad m m.regs.(rind reg) ]
-  | Negq, [ Ind3 (Lit disp, base) ] ->
-    [ readquad m (m.regs.(rind base) +. disp) ]
+  | Addq, [ Reg reg; _ ]
+  | Movq, [ Reg reg; _ ]
+  | Subq, [ Reg reg; _ ]
+  | Negq, [ Reg reg ]
   | Notq, [ Reg reg ] -> [ m.regs.(rind reg) ]
+  | Addq, [ Ind1 (Lit imm); _ ]
+  | Movq, [ Ind1 (Lit imm); _ ]
+  | Subq, [ Ind1 (Lit imm); _ ]
+  | Negq, [ Ind1 (Lit imm) ]
   | Notq, [ Ind1 (Lit imm) ] -> [ readquad m imm ]
+  | Addq, [ Ind2 reg; _ ]
+  | Movq, [ Ind2 reg; _ ]
+  | Subq, [ Ind2 reg; _ ]
+  | Negq, [ Ind2 reg ]
   | Notq, [ Ind2 reg ] -> [ readquad m m.regs.(rind reg) ]
+  | Addq, [ Ind3 (Lit disp, base); _ ]
+  | Movq, [ Ind3 (Lit disp, base); _ ]
+  | Subq, [ Ind3 (Lit disp, base); _ ]
+  | Negq, [ Ind3 (Lit disp, base) ]
   | Notq, [ Ind3 (Lit disp, base) ] ->
     [ readquad m (m.regs.(rind base) +. disp) ]
   | _ -> raise X86lite_segfault
