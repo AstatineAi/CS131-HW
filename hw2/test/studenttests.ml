@@ -74,14 +74,20 @@ let quick_power_rec (a : int) (b : int) =
   ; text "rec0" [ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ]
   ; text
       "main"
-      [ Movq, [ ~$b; ~%Rsi ]; Movq, [ ~$a; ~%Rdi ]; Callq, [ ~$$"power" ]; Retq, [] ]
+      [ Movq, [ ~$b; ~%Rsi ]
+      ; Movq, [ ~$a; ~%Rdi ]
+      ; Callq, [ ~$$"power" ]
+      ; Retq, []
+      ]
   ]
 ;;
 
 let provided_tests : suite =
   [ Test ("My Tests", [ "assert", test_my ])
   ; Test
-      ( "Student-Provided Big Test for Part III: Score recorded as PartIIITestCase"
-      , [ "quick power", program_test (quick_power_rec 23 12) 21914624432020321L ] )
+      ( "Student-Provided Big Test for Part III: Score recorded as \
+         PartIIITestCase"
+      , [ "quick power", program_test (quick_power_rec 23 12) 21914624432020321L
+        ] )
   ]
 ;;
