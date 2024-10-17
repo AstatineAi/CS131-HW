@@ -252,6 +252,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Movq, [ src ] -> ok src
   | Negq, [ dest ] -> neg dest
   | Notq, [ dest ] -> ok @@ lognot dest
+  | Subq, [ src; dest ] -> sub dest src
   | _ -> failwith "interp_opcode not implemented"
 ;;
 
@@ -260,18 +261,22 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Addq, [ _; Reg reg ]
   | Leaq, [ _; Reg reg ]
   | Movq, [ _; Reg reg ]
+  | Subq, [ _; Reg reg ]
   | Negq, [ Reg reg ]
   | Notq, [ Reg reg ] -> fun x -> m.regs.(rind reg) <- x
   | Addq, [ _; Ind1 (Lit imm) ]
   | Movq, [ _; Ind1 (Lit imm) ]
+  | Subq, [ _; Ind1 (Lit imm) ]
   | Negq, [ Ind1 (Lit imm) ]
   | Notq, [ Ind1 (Lit imm) ] -> fun x -> writequad m imm x
   | Addq, [ _; Ind2 reg ]
   | Movq, [ _; Ind2 reg ]
+  | Subq, [ _; Ind2 reg ]
   | Negq, [ Ind2 reg ]
   | Notq, [ Ind2 reg ] -> fun x -> writequad m m.regs.(rind reg) x
   | Addq, [ _; Ind3 (Lit disp, base) ]
   | Movq, [ _; Ind3 (Lit disp, base) ]
+  | Subq, [ _; Ind3 (Lit disp, base) ]
   | Negq, [ Ind3 (Lit disp, base) ]
   | Notq, [ Ind3 (Lit disp, base) ] ->
     fun x -> writequad m (m.regs.(rind base) +. disp) x
@@ -294,6 +299,12 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Movq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
   | Movq, [ Ind2 reg; _ ] -> [ readquad m m.regs.(rind reg) ]
   | Movq, [ Ind3 (Lit disp, base); _ ] ->
+    [ readquad m (m.regs.(rind base) +. disp) ]
+  | Subq, [ Imm (Lit imm); _ ] -> [ imm ]
+  | Subq, [ Reg reg; _ ] -> [ m.regs.(rind reg) ]
+  | Subq, [ Ind1 (Lit imm); _ ] -> [ readquad m imm ]
+  | Subq, [ Ind2 reg; _ ] -> [ readquad m m.regs.(rind reg) ]
+  | Subq, [ Ind3 (Lit disp, base); _ ] ->
     [ readquad m (m.regs.(rind base) +. disp) ]
   | Negq, [ Reg reg ] -> [ m.regs.(rind reg) ]
   | Negq, [ Ind1 (Lit imm) ] -> [ readquad m imm ]
@@ -332,7 +343,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   =
   match op with
   | Leaq | Movq | Notq -> ()
-  | Addq | Negq ->
+  | Addq | Negq | Subq ->
     m.flags.fo <- w.overflow;
     m.flags.fs <- w.value <. 0L;
     m.flags.fz <- w.value = 0L
