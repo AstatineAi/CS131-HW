@@ -255,7 +255,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Negq, [ dest ] -> neg dest
   | Notq, [ dest ] -> ok @@ lognot dest
   | Orq, [ src; dest ] -> ok @@ logor dest src
-  | Subq, [ src; dest ] -> sub dest src
+  | Cmpq, [ src; dest ] | Subq, [ src; dest ] -> sub dest src
   | Xorq, [ src; dest ] -> ok @@ logxor dest src
   | _ -> failwith "interp_opcode not implemented"
 ;;
@@ -270,6 +270,7 @@ let write_ind (m : mach) : operand -> int64 -> unit = function
 
 (** Update machine state with instruction results. *)
 let ins_writeback (m : mach) : ins -> int64 -> unit = function
+  | Cmpq, _ -> fun _ -> ()
   | Addq, [ _; dest ]
   | Andq, [ _; dest ]
   | Imulq, [ _; dest ]
@@ -303,6 +304,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Leaq, operands -> List.map (read_ind m) operands
   | Movq, operands
   | Addq, operands
+  | Cmpq, operands
   | Subq, operands
   | Imulq, operands
   | Negq, operands
@@ -341,6 +343,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   | Andq
   | Negq
   | Orq
+  | Cmpq
   | Subq
   | Xorq
   (* fs and fz are undefined *)
