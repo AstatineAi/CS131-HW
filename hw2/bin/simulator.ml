@@ -435,7 +435,95 @@ let ds_size (ds : data list) : quad =
     ds
 ;;
 
-let assemble (p : prog) : exec = failwith "assemble unimplemented"
+let sep_segments (p : prog) : prog * prog =
+  let data_seg : prog =
+    List.filter
+      (fun { asm; _ } ->
+        match asm with
+        | Data _ -> true
+        | _ -> false)
+      p
+  in
+  let text_seg : prog =
+    List.filter
+      (fun { asm; _ } ->
+        match asm with
+        | Text _ -> true
+        | _ -> false)
+      p
+  in
+  text_seg, data_seg
+;;
+
+let resolve_lbls ((text_seg, data_seg) : prog * prog) : (lbl, quad) Hashtbl.t =
+  let seg = text_seg @ data_seg in
+  let resolve_lbls' (seg : prog) : (lbl * quad) list * quad =
+    List.fold_left
+      (fun (acc, addr) { lbl; asm; _ } ->
+        match asm with
+        | Text is ->
+          let acc' = (lbl, addr) :: acc in
+          acc', addr +. is_size is
+        | Data ds ->
+          let acc' = (lbl, addr) :: acc in
+          acc', addr +. ds_size ds)
+      ([], mem_bot)
+      seg
+  in
+  let lbls, _ = resolve_lbls' seg in
+  let tbl = Hashtbl.create (List.length lbls) in
+  List.iter
+    (fun (lbl, addr) ->
+      if Hashtbl.mem tbl lbl
+      then raise (Redefined_sym lbl)
+      else Hashtbl.add tbl lbl addr)
+    lbls;
+  tbl
+;;
+
+let assemble (p : prog) : exec =
+  let text_seg, data_seg = sep_segments p in
+  let lbls = resolve_lbls (text_seg, data_seg) in
+  let map_lbl (lbl : lbl) : quad =
+    match Hashtbl.find_opt lbls lbl with
+    | Some addr -> addr
+    | None -> raise (Undefined_sym lbl)
+  in
+  let map_lbl_to_lit (lbl : lbl) : imm = Lit (map_lbl lbl) in
+  let resolve_opr_lbl : operand -> operand = function
+    | Imm (Lbl lbl) -> Imm (map_lbl_to_lit lbl)
+    | Ind1 (Lbl lbl) -> Ind1 (map_lbl_to_lit lbl)
+    | Ind3 (Lbl lbl, r) -> Ind3 (map_lbl_to_lit lbl, r)
+    | opr -> opr
+  in
+  let resolve_ins_lbl (op, oprs) : ins = op, List.map resolve_opr_lbl oprs in
+  let resolve_seg_lbl (seg : prog) : sbyte list =
+    List.fold_left
+      (fun acc { asm; _ } ->
+        match asm with
+        | Text is ->
+          acc
+          @ List.concat_map (fun ins -> sbytes_of_ins (resolve_ins_lbl ins)) is
+        | Data ds -> acc @ List.concat_map sbytes_of_data ds)
+      []
+      seg
+  in
+  let text_size =
+    List.fold_right
+      (fun { asm; _ } acc ->
+        match asm with
+        | Text is -> acc +. is_size is
+        | _ -> acc)
+      text_seg
+      0L
+  in
+  { entry = map_lbl "main"
+  ; text_pos = mem_bot
+  ; data_pos = mem_bot +. text_size
+  ; text_seg = resolve_seg_lbl text_seg
+  ; data_seg = resolve_seg_lbl data_seg
+  }
+;;
 
 (* Convert an object file into an executable machine state.
    - allocate the mem array
