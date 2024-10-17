@@ -247,87 +247,91 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   let open Int64 in
   let open Int64_overflow in
   match o, args with
+  | Addq, [ src; dest ] -> add dest src
+  | Andq, [ src; dest ] -> ok @@ logand dest src
+  | Imulq, [ src; dest ] -> mul dest src
+  | Leaq, [ addr ] -> ok addr
+  | Movq, [ src; _ ] -> ok src
+  | Negq, [ dest ] -> neg dest
+  | Notq, [ dest ] -> ok @@ lognot dest
+  | Orq, [ src; dest ] -> ok @@ logor dest src
+  | Cmpq, [ src; dest ] | Subq, [ src; dest ] -> sub dest src
+  | Xorq, [ src; dest ] -> ok @@ logxor dest src
+  | Sarq, [ amt; dest ] -> ok @@ shift_right dest @@ to_int amt
+  | Shlq, [ amt; dest ] -> ok @@ shift_left dest @@ to_int amt
+  | Shrq, [ amt; dest ] -> ok @@ shift_right_logical dest @@ to_int amt
+  | J cnd, [ src ] ->
+    ok (if interp_cnd m.flags cnd then src else m.regs.(rind Rip))
+  | Set cnd, [ dest ] ->
+    ok
+      (logor
+         (logand dest (lognot 0xffL))
+         (if interp_cnd m.flags cnd then 1L else 0L))
   | _ -> failwith "interp_opcode not implemented"
 ;;
 
+let write_ind (m : mach) : operand -> int64 -> unit = function
+  | Reg reg -> fun x -> m.regs.(rind reg) <- x
+  | Ind1 (Lit imm) -> fun x -> writequad m imm x
+  | Ind2 reg -> fun x -> writequad m m.regs.(rind reg) x
+  | Ind3 (Lit disp, base) -> fun x -> writequad m (m.regs.(rind base) +. disp) x
+  | _ -> raise X86lite_segfault
+;;
+
 (** Update machine state with instruction results. *)
-let ins_writeback (m : mach) : ins -> int64 -> unit =
-  failwith "ins_writeback not implemented"
+let ins_writeback (m : mach) : ins -> int64 -> unit = function
+  | Cmpq, _ -> fun _ -> ()
+  | J _, _ -> write_ind m (Reg Rip)
+  | Addq, [ _; dest ]
+  | Andq, [ _; dest ]
+  | Imulq, [ _; dest ]
+  | Leaq, [ _; dest ]
+  | Movq, [ _; dest ]
+  | Orq, [ _; dest ]
+  | Subq, [ _; dest ]
+  | Xorq, [ _; dest ]
+  | Sarq, [ _; dest ]
+  | Shlq, [ _; dest ]
+  | Shrq, [ _; dest ]
+  | Negq, [ dest ]
+  | Notq, [ dest ]
+  | Set _, [ dest ] -> write_ind m dest
+  | _ -> failwith "ins_writeback not implemented"
+;;
+
+let read_ind (m : mach) : operand -> int64 = function
+  | Ind1 (Lit imm) -> imm
+  | Ind2 reg -> m.regs.(rind reg)
+  | Ind3 (Lit disp, base) -> m.regs.(rind base) +. disp
+  | _ -> raise X86lite_segfault
+;;
+
+let read_operand (m : mach) (opnd : operand) : int64 =
+  match opnd with
+  | Imm (Lit imm) -> imm
+  | Reg reg -> m.regs.(rind reg)
+  | Ind1 _ | Ind2 _ | Ind3 _ -> readquad m @@ read_ind m opnd
+  | _ -> raise X86lite_segfault
 ;;
 
 (* mem addr ---> mem array index *)
 let interp_operands (m : mach) : ins -> int64 list = function
-  | Leaq, Ind1 (Lit imm) :: _ -> [ imm ]
-  | Leaq, Ind2 reg :: _ -> [ m.regs.(rind reg) ]
-  | Leaq, Ind3 (Lit disp, base) :: _ -> [ m.regs.(rind base) +. disp ]
-  | Movq, Imm (Lit imm) :: _
-  | Addq, Imm (Lit imm) :: _
-  | Subq, Imm (Lit imm) :: _
-  | Imulq, Imm (Lit imm) :: _
-  | Xorq, Imm (Lit imm) :: _
-  | Orq, Imm (Lit imm) :: _
-  | Andq, Imm (Lit imm) :: _
-  | Shlq, Imm (Lit imm) :: _
-  | Sarq, Imm (Lit imm) :: _
-  | Shrq, Imm (Lit imm) :: _
-  | J _, Imm (Lit imm) :: _
-  | Cmpq, Imm (Lit imm) :: _
-  | Set _, Imm (Lit imm) :: _ -> [ imm ]
-  | Negq, Reg reg :: _
-  | Notq, Reg reg :: _
-  | Movq, Reg reg :: _
-  | Addq, Reg reg :: _
-  | Subq, Reg reg :: _
-  | Imulq, Reg reg :: _
-  | Xorq, Reg reg :: _
-  | Orq, Reg reg :: _
-  | Andq, Reg reg :: _
-  (* shlq: %rcx only *)
-  | Shlq, Reg reg :: _
-  (* sarq: %rcx only *)
-  | Sarq, Reg reg :: _
-  (* shrq: %rcx only *)
-  | Shrq, Reg reg :: _
-  | J _, Reg reg :: _
-  | Cmpq, Reg reg :: _
-  | Set _, Reg reg :: _ -> [ m.regs.(rind reg) ]
-  | Negq, Ind1 (Lit imm) :: _
-  | Notq, Ind1 (Lit imm) :: _
-  | Movq, Ind1 (Lit imm) :: _
-  | Addq, Ind1 (Lit imm) :: _
-  | Subq, Ind1 (Lit imm) :: _
-  | Imulq, Ind1 (Lit imm) :: _
-  | Xorq, Ind1 (Lit imm) :: _
-  | Orq, Ind1 (Lit imm) :: _
-  | Andq, Ind1 (Lit imm) :: _
-  | J _, Ind1 (Lit imm) :: _
-  | Cmpq, Ind1 (Lit imm) :: _
-  | Set _, Ind1 (Lit imm) :: _ -> [ readquad m imm ]
-  | Negq, Ind2 reg :: _
-  | Notq, Ind2 reg :: _
-  | Movq, Ind2 reg :: _
-  | Addq, Ind2 reg :: _
-  | Subq, Ind2 reg :: _
-  | Imulq, Ind2 reg :: _
-  | Xorq, Ind2 reg :: _
-  | Orq, Ind2 reg :: _
-  | Andq, Ind2 reg :: _
-  | J _, Ind2 reg :: _
-  | Cmpq, Ind2 reg :: _
-  | Set _, Ind2 reg :: _ -> [ readquad m m.regs.(rind reg) ]
-  | Negq, Ind3 (Lit disp, base) :: _
-  | Notq, Ind3 (Lit disp, base) :: _
-  | Movq, Ind3 (Lit disp, base) :: _
-  | Addq, Ind3 (Lit disp, base) :: _
-  | Subq, Ind3 (Lit disp, base) :: _
-  | Imulq, Ind3 (Lit disp, base) :: _
-  | Xorq, Ind3 (Lit disp, base) :: _
-  | Orq, Ind3 (Lit disp, base) :: _
-  | Andq, Ind3 (Lit disp, base) :: _
-  | J _, Ind3 (Lit disp, base) :: _
-  | Cmpq, Ind3 (Lit disp, base) :: _
-  | Set _, Ind3 (Lit disp, base) :: _ ->
-    [ readquad m (m.regs.(rind base) +. disp) ]
+  | Leaq, [ addr; _ ] -> [ read_ind m addr ]
+  | Movq, operands
+  | Addq, operands
+  | Cmpq, operands
+  | Subq, operands
+  | Imulq, operands
+  | Negq, operands
+  | Andq, operands
+  | Orq, operands
+  | Notq, operands
+  | Sarq, operands
+  | Shlq, operands
+  | Shrq, operands
+  | J _, operands
+  | Set _, operands
+  | Xorq, operands -> List.map (read_operand m) operands
   | _ -> raise X86lite_segfault
 ;;
 
@@ -353,9 +357,51 @@ let rec crack (is : ins) : ins list =
 let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   : unit
   =
-  m.flags.fo <- w.overflow;
-  m.flags.fs <- w.value <. 0L;
-  m.flags.fz <- w.value = 0L
+  match op with
+  | Callq | Retq | Pushq | Popq | Jmp | J _ | Leaq | Movq | Notq | Set _ -> ()
+  | Sarq ->
+    (match ws with
+     | [ amt; dest ] ->
+       if amt <> 0L
+       then (
+         m.flags.fs <- w.value <. 0L;
+         m.flags.fz <- w.value = 0L;
+         if amt = 1L then m.flags.fo <- false)
+     | _ -> raise X86lite_segfault)
+  | Shlq ->
+    (match ws with
+     | [ amt; dest ] ->
+       if amt <> 0L
+       then (
+         m.flags.fs <- w.value <. 0L;
+         m.flags.fz <- w.value = 0L;
+         if amt = 1L
+         then
+           m.flags.fo
+           <- Int64.shift_right_logical dest 63
+              <> (Int64.shift_right_logical dest 62 |> Int64.logand 1L))
+     | _ -> raise X86lite_segfault)
+  | Shrq ->
+    (match ws with
+     | [ amt; dest ] ->
+       if amt <> 0L then m.flags.fs <- Int64.shift_right_logical w.value 63 = 1L;
+       m.flags.fz <- w.value = 0L;
+       if amt = 1L then m.flags.fo <- Int64.shift_right_logical dest 63 = 1L
+     | _ -> raise X86lite_segfault)
+  | Incq
+  | Decq
+  | Addq
+  | Andq
+  | Negq
+  | Orq
+  | Cmpq
+  | Subq
+  | Xorq
+  (* fs and fz are undefined *)
+  | Imulq ->
+    m.flags.fo <- w.overflow;
+    m.flags.fs <- w.value <. 0L;
+    m.flags.fz <- w.value = 0L
 ;;
 
 let step (m : mach) : unit =
