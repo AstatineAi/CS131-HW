@@ -358,7 +358,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   : unit
   =
   match op with
-  | J _ | Leaq | Movq | Notq | Set _ -> ()
+  | Callq | Retq | Pushq | Popq | Jmp | J _ | Leaq | Movq | Notq | Set _ -> ()
   | Sarq ->
     (match ws with
      | [ amt; dest ] ->
@@ -388,6 +388,8 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
        m.flags.fz <- w.value = 0L;
        if amt = 1L then m.flags.fo <- Int64.shift_right_logical dest 63 = 1L
      | _ -> raise X86lite_segfault)
+  | Incq
+  | Decq
   | Addq
   | Andq
   | Negq
@@ -400,7 +402,6 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
     m.flags.fo <- w.overflow;
     m.flags.fs <- w.value <. 0L;
     m.flags.fz <- w.value = 0L
-  | _ -> raise X86lite_segfault
 ;;
 
 let step (m : mach) : unit =
