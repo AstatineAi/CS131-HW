@@ -451,5 +451,16 @@ let assemble (p : prog) : exec = failwith "assemble unimplemented"
    may be of use.
 *)
 let load { entry; text_pos; data_pos; text_seg; data_seg } : mach =
-  failwith "load not implemented"
+  let flags = { fo = false; fs = false; fz = false } in
+  let regs = Array.make nregs 0L in
+  regs.(rind Rip) <- entry;
+  regs.(rind Rsp) <- mem_top -. 8L;
+  let mem = Array.make mem_size (Byte '\x00') in
+  let segs = text_seg @ data_seg in
+  let exit_addr_mem = Array.of_list @@ sbytes_of_int64 exit_addr in
+  Printf.printf "\n\ntext_pos: %Lx\n" text_pos;
+  Printf.printf "data_pos: %Lx\n\n" data_pos;
+  Array.blit exit_addr_mem 0 mem (mem_size - 8) 8;
+  Array.blit (Array.of_list segs) 0 mem 0 (List.length segs);
+  { flags; regs; mem }
 ;;
