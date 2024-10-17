@@ -257,6 +257,11 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Orq, [ src; dest ] -> ok @@ logor dest src
   | Cmpq, [ src; dest ] | Subq, [ src; dest ] -> sub dest src
   | Xorq, [ src; dest ] -> ok @@ logxor dest src
+  | Set cnd, [ dest ] ->
+    ok
+      (logor
+         (logand dest (lognot 0xffL))
+         (if interp_cnd m.flags cnd then 1L else 0L))
   | _ -> failwith "interp_opcode not implemented"
 ;;
 
@@ -280,7 +285,8 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Subq, [ _; dest ]
   | Xorq, [ _; dest ]
   | Negq, [ dest ]
-  | Notq, [ dest ] -> write_ind m dest
+  | Notq, [ dest ]
+  | Set _, [ dest ] -> write_ind m dest
   | _ -> failwith "ins_writeback not implemented"
 ;;
 
@@ -311,6 +317,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Andq, operands
   | Orq, operands
   | Notq, operands
+  | Set _, operands
   | Xorq, operands -> List.map (read_operand m) operands
   | _ -> raise X86lite_segfault
 ;;
@@ -338,7 +345,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   : unit
   =
   match op with
-  | Leaq | Movq | Notq -> ()
+  | Leaq | Movq | Notq | Set _ -> ()
   | Addq
   | Andq
   | Negq
