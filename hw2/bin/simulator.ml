@@ -257,6 +257,8 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Orq, [ src; dest ] -> ok @@ logor dest src
   | Cmpq, [ src; dest ] | Subq, [ src; dest ] -> sub dest src
   | Xorq, [ src; dest ] -> ok @@ logxor dest src
+  | J cnd, [ src ] ->
+    ok (if interp_cnd m.flags cnd then src else m.regs.(rind Rip))
   | Set cnd, [ dest ] ->
     ok
       (logor
@@ -276,6 +278,7 @@ let write_ind (m : mach) : operand -> int64 -> unit = function
 (** Update machine state with instruction results. *)
 let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Cmpq, _ -> fun _ -> ()
+  | J _, _ -> write_ind m (Reg Rip)
   | Addq, [ _; dest ]
   | Andq, [ _; dest ]
   | Imulq, [ _; dest ]
@@ -317,6 +320,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Andq, operands
   | Orq, operands
   | Notq, operands
+  | J _, operands
   | Set _, operands
   | Xorq, operands -> List.map (read_operand m) operands
   | _ -> raise X86lite_segfault
@@ -345,7 +349,7 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   : unit
   =
   match op with
-  | Leaq | Movq | Notq | Set _ -> ()
+  | J _ | Leaq | Movq | Notq | Set _ -> ()
   | Addq
   | Andq
   | Negq
