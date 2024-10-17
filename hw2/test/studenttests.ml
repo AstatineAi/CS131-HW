@@ -42,36 +42,36 @@ let mov_ri =
 
 (* .text
 
-.globl power
-power:
-    pushq %rbp
-    movq %rsp, %rbp
-    pushq %rsi
-    pushq %rdi
+   .globl power
+   power:
+   pushq %rbp
+   movq %rsp, %rbp
+   pushq %rsi
+   pushq %rdi
 
-    andq %rsi, %rsi
-    jne .nonzero
+   andq %rsi, %rsi
+   jne .nonzero
 
-    movq $1, %rax
-    jmp .end
+   movq $1, %rax
+   jmp .end
 
-.nonzero:
-    shrq $1, %rsi
-    callq power
+   .nonzero:
+   shrq $1, %rsi
+   callq power
 
-    imulq %rax, %rax
+   imulq %rax, %rax
 
-    andq $1, 8(%rsp)
-    jz .end
+   andq $1, 8(%rsp)
+   jz .end
 
-    imulq (%rsp), %rax
+   imulq (%rsp), %rax
 
-.end:
-    movq %rbp, %rsp
-    popq %rbp
-    retq
+   .end:
+   movq %rbp, %rsp
+   popq %rbp
+   retq
 
-    .section    .note.GNU-stack,"",@progbits *)
+   .section    .note.GNU-stack,"",@progbits *)
 let quick_power_rec (a : int) (b : int) =
   [ text
       "power"
@@ -113,7 +113,11 @@ let provided_tests : suite =
   ; Test
       ( "Student-Provided Big Test for Part III: Score recorded as \
          PartIIITestCase"
-      , [ "quick power", program_test (quick_power_rec 23 12) 21914624432020321L
+      , [ ( "quick power1"
+          , program_test (quick_power_rec 23 12) 21914624432020321L )
+        ; "quick power2", program_test (quick_power_rec 2 10) 1024L
+        ; ( "quick power3"
+          , program_test (quick_power_rec 3 36) 150094635296999121L )
         ] )
   ]
 ;;
