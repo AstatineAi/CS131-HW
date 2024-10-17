@@ -38,45 +38,71 @@ let mov_ri =
 ;;
 
 (* Recursively calculate a^b *)
-(* Pass parameters through register Rdi and Rsi *)
+(* System V gABI and X86-64 psABI *)
+
+(* .text
+
+.globl power
+power:
+    pushq %rbp
+    movq %rsp, %rbp
+    pushq %rsi
+    pushq %rdi
+
+    andq %rsi, %rsi
+    jne .nonzero
+
+    movq $1, %rax
+    jmp .end
+
+.nonzero:
+    shrq $1, %rsi
+    callq power
+
+    imulq %rax, %rax
+
+    andq $1, 8(%rsp)
+    jz .end
+
+    imulq (%rsp), %rax
+
+.end:
+    movq %rbp, %rsp
+    popq %rbp
+    retq
+
+    .section    .note.GNU-stack,"",@progbits *)
 let quick_power_rec (a : int) (b : int) =
   [ text
       "power"
       [ Pushq, [ ~%Rbp ]
       ; Movq, [ ~%Rsp; ~%Rbp ]
-      ; Subq, [ ~$32; ~%Rsp ]
-      ; Movq, [ ~%Rdi; Ind3 (Lit (-24L), Rbp) ]
-      ; Movq, [ ~%Rsi; Ind3 (Lit (-32L), Rbp) ]
-      ; Cmpq, [ ~$0; Ind1 (Lit (-32L)) ]
-      ; J Neq, [ ~$$"calc" ]
+      ; Pushq, [ ~%Rsi ]
+      ; Pushq, [ ~%Rdi ]
+      ; Andq, [ ~%Rsi; ~%Rsi ]
+      ; J Neq, [ ~$$"nonzero" ]
       ; Movq, [ ~$1; ~%Rax ]
-      ; Jmp, [ ~$$"rec0" ]
+      ; Jmp, [ ~$$"end" ]
       ]
   ; text
-      "calc"
-      [ Movq, [ Ind3 (Lit (-32L), Rbp); ~%Rax ]
-      ; Sarq, [ ~%Rax ]
-      ; Movq, [ ~%Rax; ~%Rdx ]
-      ; Movq, [ Ind3 (Lit (-24L), Rbp); ~%Rax ]
-      ; Movq, [ ~%Rdx; ~%Rsi ]
-      ; Movq, [ ~%Rax; ~%Rdi ]
+      "nonzero"
+      [ Shrq, [ ~$1; ~%Rsi ]
       ; Callq, [ ~$$"power" ]
-      ; Movq, [ ~%Rax; Ind3 (Lit (-8L), Rbp) ]
-      ; Movq, [ Ind3 (Lit (-32L), Rbp); ~%Rax ]
-      ; Andq, [ ~$1; ~%Rax ]
-      ; Andq, [ ~%Rax; ~%Rax ]
-      ; J Eq, [ ~$$"recn" ]
-      ; Movq, [ Ind3 (Lit (-8L), Rbp); ~%Rax ]
-      ; Imulq, [ Ind3 (Lit (-24L), Rbp); ~%Rax ]
-      ; Movq, [ ~%Rax; Ind3 (Lit (-8L), Rbp) ]
+      ; Imulq, [ ~%Rax; ~%Rax ]
+      ; Andq, [ ~$1; Ind3 (Lit 8L, Rsp) ]
+      ; J Eq, [ ~$$"end" ]
+      ; Imulq, [ Ind2 Rsp; ~%Rax ]
       ]
-  ; text "recn" [ Movq, [ Ind3 (Lit (-8L), Rbp); ~%Rax ] ]
-  ; text "rec0" [ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ]
+  ; text "end" [ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ]
   ; text
       "main"
-      [ Movq, [ ~$b; ~%Rsi ]
+      [ Pushq, [ ~%Rbp ]
+      ; Movq, [ ~%Rsp; ~%Rbp ]
       ; Movq, [ ~$a; ~%Rdi ]
+      ; Movq, [ ~$b; ~%Rsi ]
       ; Callq, [ ~$$"power" ]
+      ; Movq, [ ~%Rbp; ~%Rsp ]
+      ; Popq, [ ~%Rbp ]
       ; Retq, []
       ]
   ]
