@@ -257,6 +257,7 @@ let interp_opcode (m : mach) (o : opcode) (args : int64 list) : Int64_overflow.t
   | Orq, [ src; dest ] -> ok @@ logor dest src
   | Cmpq, [ src; dest ] | Subq, [ src; dest ] -> sub dest src
   | Xorq, [ src; dest ] -> ok @@ logxor dest src
+  | Sarq, [ amt; dest ] -> ok @@ shift_right dest @@ to_int amt
   | Shlq, [ amt; dest ] -> ok @@ shift_left dest @@ to_int amt
   | Shrq, [ amt; dest ] -> ok @@ shift_right_logical dest @@ to_int amt
   | J cnd, [ src ] ->
@@ -289,6 +290,7 @@ let ins_writeback (m : mach) : ins -> int64 -> unit = function
   | Orq, [ _; dest ]
   | Subq, [ _; dest ]
   | Xorq, [ _; dest ]
+  | Sarq, [ _; dest ]
   | Shlq, [ _; dest ]
   | Shrq, [ _; dest ]
   | Negq, [ dest ]
@@ -324,6 +326,7 @@ let interp_operands (m : mach) : ins -> int64 list = function
   | Andq, operands
   | Orq, operands
   | Notq, operands
+  | Sarq, operands
   | Shlq, operands
   | Shrq, operands
   | J _, operands
@@ -356,6 +359,15 @@ let set_flags (m : mach) (op : opcode) (ws : quad list) (w : Int64_overflow.t)
   =
   match op with
   | J _ | Leaq | Movq | Notq | Set _ -> ()
+  | Sarq ->
+    (match ws with
+     | [ amt; dest ] ->
+       if amt <> 0L
+       then (
+         m.flags.fs <- w.value <. 0L;
+         m.flags.fz <- w.value = 0L;
+         if amt = 1L then m.flags.fo <- false)
+     | _ -> raise X86lite_segfault)
   | Shlq ->
     (match ws with
      | [ amt; dest ] ->
