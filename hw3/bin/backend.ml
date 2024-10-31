@@ -302,7 +302,29 @@ let arg_loc (n : int) : operand =
    - see the discussion about locals
 *)
 let stack_layout (args : uid list) ((block, lbled_blocks) : cfg) : layout =
-  failwith "stack_layout not implemented"
+  let blocks =
+    List.fold_left (fun result (_, blk) -> blk :: result) [ block ] lbled_blocks
+  in
+  let uids =
+    List.sort_uniq String.compare
+    @@ args
+    @ List.fold_left
+        (fun result blk ->
+          let first (uid, _) = uid in
+          List.map first blk.insns @ [ first blk.term ] @ result)
+        []
+        blocks
+  in
+  let result =
+    List.fold_left_map
+      (fun acc arg ->
+        match arg with
+        | _ -> succ acc, (arg, Ind3 (Lit (Int64.of_int (-8 * acc)), Rbp)))
+      1
+      uids
+  in
+  match result with
+  | _, result -> result
 ;;
 
 (* The code for the entry-point of a function must do several things:
