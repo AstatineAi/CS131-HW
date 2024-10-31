@@ -286,7 +286,12 @@ let compile_lbl_block fn lbl ctxt blk : elem =
 
    [ NOTE: the first six arguments are numbered 0 .. 5 ]
 *)
-let arg_loc (n : int) : operand = failwith "arg_loc not implemented"
+let arg_loc (n : int) : operand =
+  let arg_regs = [ Rdi; Rsi; Rdx; Rcx; R08; R09 ] in
+  match n with
+  | n when n < 6 -> Reg (List.nth arg_regs n)
+  | _ -> Ind3 (Lit (Int64.of_int (8 * (n - 5))), Rbp)
+;;
 
 (* We suggest that you create a helper function that computes the
    stack layout for a given function declaration.
