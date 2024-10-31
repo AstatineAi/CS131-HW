@@ -90,7 +90,10 @@ let lookup m x = List.assoc x m
 *)
 let compile_operand (ctxt : ctxt) (dest : X86.operand) : Ll.operand -> ins
   = function
-  | _ -> failwith "compile_operand unimplemented"
+  | Null -> Movq, [ Imm (Lit 0L); dest ]
+  | Const i -> Movq, [ Imm (Lit i); dest ]
+  | Gid gid -> Leaq, [ Ind3 (Lbl (Platform.mangle gid), Rip); dest ]
+  | Id uid -> Movq, [ lookup ctxt.layout uid; dest ]
 ;;
 
 (* compiling call  ---------------------------------------------------------- *)
