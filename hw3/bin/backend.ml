@@ -259,8 +259,61 @@ let rec prepare_args (ctxt : ctxt) (n : int)
 
    - Bitcast: does nothing interesting at the assembly level
 *)
-let compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
-  failwith "compile_insn not implemented"
+let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
+  let open Asm in
+  match i with
+  | Binop (bop, _, lhs, rhs) ->
+    [ compile_operand ctxt ~%Rax lhs
+    ; compile_operand ctxt ~%Rcx rhs
+    ; ( (match bop with
+         | Add -> Addq
+         | Sub -> Subq
+         | Mul -> Imulq
+         | Shl -> Shlq
+         | Lshr -> Shrq
+         | Ashr -> Sarq
+         | And -> Andq
+         | Or -> Orq
+         | Xor -> Xorq)
+      , [ ~%Rcx; ~%Rax ] )
+    ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
+    ]
+  | Alloca _ ->
+    [ Leaq, [ lookup ctxt.layout uid; ~%Rax ]
+    ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
+    ]
+  | Load (t, Gid gid) when loadable ctxt t ->
+    [ Movq, [ Ind3 (Lbl (Platform.mangle gid), Rip); ~%Rax ]
+    ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
+    ]
+  | Load (t, Id id) when loadable ctxt t ->
+    [ Movq, [ lookup ctxt.layout id; ~%Rax ]
+    ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
+    ]
+  | Store (_, op, Gid gid) ->
+    [ compile_operand ctxt ~%Rax op
+    ; Movq, [ ~%Rax; Ind3 (Lbl (Platform.mangle gid), Rip) ]
+    ]
+  | Store (_, op, Id id) ->
+    [ compile_operand ctxt ~%Rax op; Movq, [ ~%Rax; lookup ctxt.layout id ] ]
+  | Icmp (cnd, _, lhs, rhs) ->
+    [ compile_operand ctxt ~%Rax lhs
+    ; compile_operand ctxt ~%Rcx rhs
+    ; Xorq, [ ~%Rdx; ~%Rdx ]
+    ; Cmpq, [ ~%Rcx; ~%Rax ]
+    ; Set (compile_cnd cnd), [ ~%Rdx ]
+    ; Movq, [ ~%Rdx; lookup ctxt.layout uid ]
+    ]
+  | Call (Void, op, args) when callable op ->
+    prepare_args ctxt 0 args
+    @ [ compile_operand ctxt ~%Rax op; Callq, [ ~%Rax ] ]
+  | Call (_, op, args) ->
+    compile_insn ctxt (uid, Call (Void, op, args))
+    @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
+  | Bitcast (_, op, _) ->
+    [ compile_operand ctxt ~%Rax op; Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
+  | Gep (t, op, path) -> compile_gep ctxt (t, op) path
+  | _ -> failwith "compile_insn not implemented"
 ;;
 
 (* compiling terminators  --------------------------------------------------- *)
