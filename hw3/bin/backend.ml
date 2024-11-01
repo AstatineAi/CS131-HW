@@ -286,6 +286,7 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     ]
   | Load (t, Id id) when loadable ctxt t ->
     [ Movq, [ lookup ctxt.layout id; ~%Rax ]
+    ; Movq, [ Ind2 Rax; ~%Rax ]
     ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
     ]
   | Store (_, op, Gid gid) ->
