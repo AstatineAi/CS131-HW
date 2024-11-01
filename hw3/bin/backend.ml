@@ -294,7 +294,10 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     ; Movq, [ ~%Rax; Ind3 (Lbl (Platform.mangle gid), Rip) ]
     ]
   | Store (_, op, Id id) ->
-    [ compile_operand ctxt ~%Rax op; Movq, [ ~%Rax; lookup ctxt.layout id ] ]
+    [ compile_operand ctxt ~%Rax op
+    ; Movq, [ lookup ctxt.layout id; ~%Rcx ]
+    ; Movq, [ ~%Rax; Ind2 Rcx ]
+    ]
   | Icmp (cnd, _, lhs, rhs) ->
     [ compile_operand ctxt ~%Rax lhs
     ; compile_operand ctxt ~%Rcx rhs
