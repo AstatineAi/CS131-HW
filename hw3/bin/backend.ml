@@ -310,22 +310,17 @@ let stack_layout (args : uid list) ((block, lbled_blocks) : cfg) : layout =
     List.sort_uniq String.compare
     @@ args
     @ List.fold_left
-        (fun result blk ->
-          let first (uid, _) = uid in
-          List.map first blk.insns @ [ first blk.term ] @ result)
+        (fun result blk -> List.map fst blk.insns @ [ fst blk.term ] @ result)
         []
         blocks
   in
-  let result =
-    List.fold_left_map
-      (fun acc arg ->
-        match arg with
-        | _ -> succ acc, (arg, Ind3 (Lit (Int64.of_int (-8 * acc)), Rbp)))
-      1
-      uids
-  in
-  match result with
-  | _, result -> result
+  snd
+  @@ List.fold_left_map
+       (fun acc arg ->
+         match arg with
+         | _ -> succ acc, (arg, Ind3 (Lit (Int64.of_int (-8 * acc)), Rbp)))
+       1
+       uids
 ;;
 
 (* The code for the entry-point of a function must do several things:
