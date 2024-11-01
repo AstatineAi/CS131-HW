@@ -203,10 +203,89 @@ let rec size_ty (tdecls : (tid * ty) list) (t : Ll.ty) : int =
    in (4), but relative to the type f the sub-element picked out
    by the path so far
 *)
-let compile_gep (ctxt : ctxt) (op : Ll.ty * Ll.operand) (path : Ll.operand list)
+let rec compile_gep' (ctxt : ctxt) (t : Ll.ty) (path : Ll.operand list)
   : ins list
   =
-  failwith "compile_gep not implemented"
+  let open Asm in
+  match t with
+  | Namedt t' -> compile_gep' ctxt (lookup ctxt.tdecls t') path
+  | Struct ts ->
+    (match path with
+     | Const n :: tail ->
+       let rec compile_gep'_struct (ctxt : ctxt) (n : int64) (ts : ty list)
+         : int64 * ty
+         =
+         match n with
+         | 0L -> 0L, List.hd ts
+         | _ ->
+           let result =
+             compile_gep'_struct ctxt (Int64.sub n 1L) (List.tl ts)
+           in
+           ( Int64.add
+               (Int64.of_int @@ size_ty ctxt.tdecls (List.hd ts))
+               (fst result)
+           , snd result )
+       in
+       let result = compile_gep'_struct ctxt n ts in
+       [ Movq, [ Imm (Lit (fst result)); ~%Rcx ]; Addq, [ ~%Rcx; ~%Rax ] ]
+       @ compile_gep' ctxt (snd result) tail
+     | _ -> failwith "compile_gep'_struct not implemented")
+  | Array (_, t') ->
+    (match path with
+     | Const idx :: tail ->
+       [ Movq, [ Imm (Lit idx); ~%Rcx ]
+       ; Imulq, [ ~$(size_ty ctxt.tdecls t'); ~%Rcx ]
+       ; Addq, [ ~%Rcx; ~%Rax ]
+       ]
+       @ compile_gep' ctxt t' tail
+     | Id id :: tail ->
+       [ Movq, [ lookup ctxt.layout id; ~%Rcx ]
+       ; Imulq, [ ~$(size_ty ctxt.tdecls t'); ~%Rcx ]
+       ; Addq, [ ~%Rcx; ~%Rax ]
+       ]
+       @ compile_gep' ctxt t' tail
+     | _ -> failwith "compile_gep' not implemented")
+  | _ ->
+    (match path with
+     | [] -> []
+     | _ ->
+       failwith
+         (String.concat
+            ""
+            (List.map
+               (fun x ->
+                 match x with
+                 | Null -> Format.sprintf "0 "
+                 | Const i -> Format.sprintf "%Ld " i
+                 | Gid gid -> Format.sprintf "%s " gid
+                 | Id uid -> Format.sprintf "%s " uid)
+               path
+             @ [ "\n" ])))
+;;
+
+let rec compile_gep
+  (ctxt : ctxt)
+  (op : Ll.ty * Ll.operand)
+  (path : Ll.operand list)
+  : ins list
+  =
+  let open Asm in
+  match op with
+  | Namedt t', op' -> compile_gep ctxt (lookup ctxt.tdecls t', op') path
+  | Ptr t, op' ->
+    (match op' with
+     | Gid _ | Id _ -> compile_operand ctxt ~%Rax op'
+     | _ -> failwith "compile_gep not implemented")
+    ::
+    (match path with
+     | Const _ :: tail | Id _ :: tail ->
+       [ compile_operand ctxt ~%Rcx (List.hd path)
+       ; Imulq, [ ~$(size_ty ctxt.tdecls t); ~%Rcx ]
+       ; Addq, [ ~%Rcx; ~%Rax ]
+       ]
+       @ compile_gep' ctxt t tail
+     | _ -> failwith "compile_gep not implemented")
+  | _ -> failwith "compile_gep not implemented"
 ;;
 
 (* compiling instructions  -------------------------------------------------- *)
@@ -314,7 +393,8 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
   | Bitcast (_, op, _) ->
     [ compile_operand ctxt ~%Rax op; Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
-  | Gep (t, op, path) -> compile_gep ctxt (t, op) path
+  | Gep (t, op, path) ->
+    compile_gep ctxt (t, op) path @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
   | _ -> failwith "compile_insn not implemented"
 ;;
 
