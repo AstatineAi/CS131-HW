@@ -14,6 +14,7 @@
         packages =
           with pkgs;
           [
+            clang
             gnumake
             zip
           ]
