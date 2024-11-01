@@ -211,6 +211,12 @@ let compile_gep (ctxt : ctxt) (op : Ll.ty * Ll.operand) (path : Ll.operand list)
 
 (* compiling instructions  -------------------------------------------------- *)
 
+let rec loadable (ctxt : ctxt) : ty -> bool = function
+  | Ptr _ -> true
+  | Namedt t -> loadable ctxt @@ lookup ctxt.tdecls t
+  | _ -> false
+;;
+
 (* The result of compiling a single LLVM instruction might be many x86
    instructions.  We have not determined the structure of this code
    for you. Some of the instructions require only a couple of assembly
