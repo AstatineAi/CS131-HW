@@ -268,7 +268,8 @@ let compile_terminator (fn : string) (ctxt : ctxt) (t : Ll.terminator)
    [blk]  - LLVM IR code for the block
 *)
 let compile_block (fn : string) (ctxt : ctxt) (blk : Ll.block) : ins list =
-  failwith "compile_block not implemented"
+  List.concat_map (compile_insn ctxt) blk.insns
+  @ compile_terminator fn ctxt (snd blk.term)
 ;;
 
 let compile_lbl_block fn lbl ctxt blk : elem =
