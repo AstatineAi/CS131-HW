@@ -217,6 +217,12 @@ let rec loadable (ctxt : ctxt) : ty -> bool = function
   | _ -> false
 ;;
 
+let callable : Ll.operand -> bool = function
+  | Gid _ -> true
+  | Id _ -> true
+  | _ -> false
+;;
+
 (* The result of compiling a single LLVM instruction might be many x86
    instructions.  We have not determined the structure of this code
    for you. Some of the instructions require only a couple of assembly
