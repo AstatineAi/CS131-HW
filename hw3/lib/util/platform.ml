@@ -65,7 +65,7 @@ let configure_os () =
   then (
     linux := true ;
     target_triple := linux_target_triple ;
-    platform_flags := "" )
+    platform_flags := "-z noexecstack" )
   else if os = "Darwin"
   then (
     linux := false ;
