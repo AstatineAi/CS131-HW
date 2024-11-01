@@ -279,9 +279,7 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
     ]
   | Alloca _ ->
-    [ Leaq, [ lookup ctxt.layout uid; ~%Rax ]
-    ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
-    ]
+    [ Subq, [ ~$8; ~%Rsp ]; Movq, [ ~%Rsp; lookup ctxt.layout uid ] ]
   | Load (t, Gid gid) when loadable ctxt t ->
     [ Movq, [ Ind3 (Lbl (Platform.mangle gid), Rip); ~%Rax ]
     ; Movq, [ ~%Rax; lookup ctxt.layout uid ]
