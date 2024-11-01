@@ -360,7 +360,26 @@ let compile_fdecl
   ({ f_param; f_cfg; _ } : fdecl)
   : prog
   =
-  failwith "compile_fdecl unimplemented"
+  let open Asm in
+  let stack = stack_layout f_param f_cfg in
+  let stack_size = 8 * List.length stack in
+  let ctxt = { tdecls; layout = stack } in
+  let fn = Platform.mangle name in
+  gtext
+    fn
+    ([ Pushq, [ ~%Rbp ]; Movq, [ ~%Rsp; ~%Rbp ]; Subq, [ ~$stack_size; ~%Rsp ] ]
+     @ snd
+         (List.fold_left
+            (fun (n, insn) param ->
+              ( succ n
+              , insn
+                @ [ Movq, [ arg_loc n; ~%Rax ]
+                  ; Movq, [ ~%Rax; lookup stack param ]
+                  ] ))
+            (0, [])
+            f_param)
+     @ compile_block fn ctxt (fst f_cfg))
+  :: List.map (fun (lbl, blk) -> compile_lbl_block fn lbl ctxt blk) (snd f_cfg)
 ;;
 
 (* compile_gdecl ------------------------------------------------------------ *)
