@@ -257,7 +257,22 @@ let mk_lbl (fn : string) (l : string) = fn ^ "." ^ l
 let compile_terminator (fn : string) (ctxt : ctxt) (t : Ll.terminator)
   : ins list
   =
-  failwith "compile_terminator not implemented"
+  let open Asm in
+  match t with
+  | Ret (_, Some op) ->
+    [ compile_operand ctxt ~%Rax op
+    ; Movq, [ ~%Rbp; ~%Rsp ]
+    ; Popq, [ ~%Rbp ]
+    ; Retq, []
+    ]
+  | Ret (_, None) -> [ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ]
+  | Br lbl -> [ Jmp, [ ~$$(mk_lbl fn lbl) ] ]
+  | Cbr (op, l1, l2) ->
+    [ compile_operand ctxt ~%Rax op
+    ; Cmpq, [ ~$1; ~%Rax ]
+    ; J Eq, [ ~$$(mk_lbl fn l1) ]
+    ; Jmp, [ ~$$(mk_lbl fn l2) ]
+    ]
 ;;
 
 (* compiling blocks --------------------------------------------------------- *)
