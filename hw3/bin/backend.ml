@@ -291,7 +291,7 @@ let arg_loc (n : int) : operand =
   let arg_regs = [ Rdi; Rsi; Rdx; Rcx; R08; R09 ] in
   match n with
   | n when n < 6 -> Reg (List.nth arg_regs n)
-  | _ -> Ind3 (Lit (Int64.of_int (8 * (n - 5))), Rbp)
+  | _ -> Ind3 (Lit (Int64.of_int (8 * (n - 4))), Rbp)
 ;;
 
 (* We suggest that you create a helper function that computes the
