@@ -223,6 +223,21 @@ let callable : Ll.operand -> bool = function
   | _ -> false
 ;;
 
+let prepare_arg (ctxt : ctxt) (n : int) (arg : Ll.operand) : ins list =
+  let open Asm in
+  let arg_regs = [ Rdi; Rsi; Rdx; Rcx; R08; R09 ] in
+  match n with
+  | n when n < 6 -> [ compile_operand ctxt (Reg (List.nth arg_regs n)) arg ]
+  | _ -> [ compile_operand ctxt ~%Rax arg; Pushq, [ ~%Rax ] ]
+;;
+
+let rec prepare_args (ctxt : ctxt) (n : int)
+  : (ty * Ll.operand) list -> ins list
+  = function
+  | [] -> []
+  | (_, arg) :: args -> prepare_args ctxt (succ n) args @ prepare_arg ctxt n arg
+;;
+
 (* The result of compiling a single LLVM instruction might be many x86
    instructions.  We have not determined the structure of this code
    for you. Some of the instructions require only a couple of assembly
