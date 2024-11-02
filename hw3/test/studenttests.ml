@@ -43,6 +43,4 @@ let builtin_tests =
   ]
 ;;
 
-let provided_tests : suite =
-  [ GradedTest ("builtin tests", 33, executed builtin_tests) ]
-;;
+let provided_tests : suite = [ Test ("builtin tests", executed builtin_tests) ]
