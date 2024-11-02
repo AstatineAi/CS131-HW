@@ -263,8 +263,8 @@ let rec compile_gep
      | _ -> raise (Invalid_gep "Invalid operand type"))
     ::
     (match path with
-     | Const _ :: tail | Id _ :: tail ->
-       [ compile_operand ctxt ~%Rcx (List.hd path)
+     | (Const _ as hd) :: tail | (Id _ as hd) :: tail ->
+       [ compile_operand ctxt ~%Rcx hd
        ; Imulq, [ ~$(size_ty ctxt.tdecls t); ~%Rcx ]
        ; Addq, [ ~%Rcx; ~%Rax ]
        ]
@@ -287,7 +287,7 @@ let callable : Ll.operand -> bool = function
   | _ -> false
 ;;
 
-let arg_regs (n: int) : X86.reg =
+let arg_regs (n : int) : X86.reg =
   match n with
   | 0 -> Rdi
   | 1 -> Rsi
@@ -296,6 +296,8 @@ let arg_regs (n: int) : X86.reg =
   | 4 -> R08
   | 5 -> R09
   | _ -> raise (Invalid_argument "arg_regs")
+;;
+
 let prepare_arg (ctxt : ctxt) (n : int) (arg : Ll.operand) : ins list =
   let open Asm in
   match n with
