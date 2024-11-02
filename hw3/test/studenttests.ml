@@ -6,6 +6,10 @@ open Gradedtests
 (* You should also add additional test cases here to help you   *)
 (* debug your program.                                          *)
 
+let student_ll_tests =
+  [ "llprograms/fold_sum.ll", 29L; "llprograms/fold_max.ll", 8L ]
+;;
+
 let builtin_tests =
   [ "llprograms/add_twice.ll", 29L
   ; "llprograms/arith_combo_dce.ll", 4L
@@ -43,4 +47,8 @@ let builtin_tests =
   ]
 ;;
 
-let provided_tests : suite = [ Test ("builtin tests", executed builtin_tests) ]
+let provided_tests : suite =
+  [ Test ("builtin tests", executed builtin_tests)
+  ; Test ("student tests", executed student_ll_tests)
+  ]
+;;
