@@ -215,23 +215,17 @@ let rec compile_gep' (ctxt : ctxt) (t : Ll.ty) (path : Ll.operand list)
   | Struct ts ->
     (match path with
      | Const n :: tail ->
-       let rec compile_gep'_struct (ctxt : ctxt) (n : int64) (ts : ty list)
-         : int64 * ty
-         =
-         match n with
-         | 0L -> 0L, List.hd ts
-         | _ ->
-           let result =
-             compile_gep'_struct ctxt (Int64.sub n 1L) (List.tl ts)
-           in
-           ( Int64.add
-               (Int64.of_int @@ size_ty ctxt.tdecls (List.hd ts))
-               (fst result)
-           , snd result )
+       let rec compile_gep'_struct (n : int64) (ts : ty list) : int64 * ty =
+         match n, ts with
+         | 0L, t :: _ -> 0L, t
+         | _, t :: ts' ->
+           let offset, res_ty = compile_gep'_struct (Int64.sub n 1L) ts' in
+           Int64.add offset (Int64.of_int @@ size_ty ctxt.tdecls t), res_ty
+         | _ -> raise (Invalid_gep "Path longer than struct")
        in
-       let result = compile_gep'_struct ctxt n ts in
-       [ Movq, [ Imm (Lit (fst result)); ~%Rcx ]; Addq, [ ~%Rcx; ~%Rax ] ]
-       @ compile_gep' ctxt (snd result) tail
+       let offset, ty = compile_gep'_struct n ts in
+       [ Movq, [ Imm (Lit offset); ~%Rcx ]; Addq, [ ~%Rcx; ~%Rax ] ]
+       @ compile_gep' ctxt ty tail
      | _ -> raise (Invalid_gep "Non-constant index in struct"))
   | Array (_, t') ->
     (match path with
