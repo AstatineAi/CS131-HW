@@ -203,6 +203,9 @@ let rec size_ty (tdecls : (tid * ty) list) (t : Ll.ty) : int =
    in (4), but relative to the type f the sub-element picked out
    by the path so far
 *)
+
+exception Invalid_gep of string
+
 let rec compile_gep' (ctxt : ctxt) (t : Ll.ty) (path : Ll.operand list)
   : ins list
   =
@@ -229,7 +232,7 @@ let rec compile_gep' (ctxt : ctxt) (t : Ll.ty) (path : Ll.operand list)
        let result = compile_gep'_struct ctxt n ts in
        [ Movq, [ Imm (Lit (fst result)); ~%Rcx ]; Addq, [ ~%Rcx; ~%Rax ] ]
        @ compile_gep' ctxt (snd result) tail
-     | _ -> failwith "compile_gep'_struct not implemented")
+     | _ -> raise (Invalid_gep "Non-constant index in struct"))
   | Array (_, t') ->
     (match path with
      | Const idx :: tail ->
@@ -244,23 +247,11 @@ let rec compile_gep' (ctxt : ctxt) (t : Ll.ty) (path : Ll.operand list)
        ; Addq, [ ~%Rcx; ~%Rax ]
        ]
        @ compile_gep' ctxt t' tail
-     | _ -> failwith "compile_gep' not implemented")
+     | _ -> raise (Invalid_gep "Invalid index type in array"))
   | _ ->
     (match path with
      | [] -> []
-     | _ ->
-       failwith
-         (String.concat
-            ""
-            (List.map
-               (fun x ->
-                 match x with
-                 | Null -> Format.sprintf "0 "
-                 | Const i -> Format.sprintf "%Ld " i
-                 | Gid gid -> Format.sprintf "%s " gid
-                 | Id uid -> Format.sprintf "%s " uid)
-               path
-             @ [ "\n" ])))
+     | _ -> raise (Invalid_gep "Path longer than type"))
 ;;
 
 let rec compile_gep
@@ -275,7 +266,7 @@ let rec compile_gep
   | Ptr t, op' ->
     (match op' with
      | Gid _ | Id _ -> compile_operand ctxt ~%Rax op'
-     | _ -> failwith "compile_gep not implemented")
+     | _ -> raise (Invalid_gep "Invalid operand type"))
     ::
     (match path with
      | Const _ :: tail | Id _ :: tail ->
@@ -284,8 +275,8 @@ let rec compile_gep
        ; Addq, [ ~%Rcx; ~%Rax ]
        ]
        @ compile_gep' ctxt t tail
-     | _ -> failwith "compile_gep not implemented")
-  | _ -> failwith "compile_gep not implemented"
+     | _ -> raise (Invalid_gep "Invalid index type"))
+  | _ -> raise (Invalid_gep "Invalid operand type")
 ;;
 
 (* compiling instructions  -------------------------------------------------- *)
@@ -338,6 +329,9 @@ let rec prepare_args (ctxt : ctxt) (n : int)
 
    - Bitcast: does nothing interesting at the assembly level
 *)
+
+exception Invalid_insn of string
+
 let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
   let open Asm in
   match i with
@@ -395,7 +389,7 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     [ compile_operand ctxt ~%Rax op; Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
   | Gep (t, op, path) ->
     compile_gep ctxt (t, op) path @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
-  | _ -> failwith "compile_insn not implemented"
+  | _ -> raise (Invalid_insn "Invalid instruction operand")
 ;;
 
 (* compiling terminators  --------------------------------------------------- *)
