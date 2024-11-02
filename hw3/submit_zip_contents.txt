@@ -1,2 +1,4 @@
 bin/backend.ml
 test/studenttests.ml
+llprograms/fold_sum.ll
+llprograms/fold_max.ll
