@@ -7,7 +7,10 @@ open Gradedtests
 (* debug your program.                                          *)
 
 let student_ll_tests =
-  [ "llprograms/fold_sum.ll", 29L; "llprograms/fold_max.ll", 8L ]
+  [ "llprograms/fold_sum.ll", 29L
+  ; "llprograms/fold_max.ll", 8L
+  ; "llprograms/day_of_the_week.ll", 1L
+  ]
 ;;
 
 let builtin_tests =
