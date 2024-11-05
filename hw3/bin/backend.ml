@@ -275,6 +275,8 @@ let rec compile_gep
 
 (* compiling instructions  -------------------------------------------------- *)
 
+exception Invalid_insn of string
+
 let rec loadable (ctxt : ctxt) : ty -> bool = function
   | Ptr _ -> true
   | Namedt t -> loadable ctxt @@ lookup ctxt.tdecls t
@@ -305,11 +307,32 @@ let prepare_arg (ctxt : ctxt) (n : int) (arg : Ll.operand) : ins list =
   | _ -> [ compile_operand ctxt ~%Rax arg; Pushq, [ ~%Rax ] ]
 ;;
 
-let rec prepare_args (ctxt : ctxt) (n : int)
-  : (ty * Ll.operand) list -> ins list
-  = function
-  | [] -> []
-  | (_, arg) :: args -> prepare_args ctxt (succ n) args @ prepare_arg ctxt n arg
+let compile_call (ctxt : ctxt) (op : Ll.operand) (args : (ty * Ll.operand) list)
+  : ins list
+  =
+  let rec prepare_args (ctxt : ctxt) (n : int)
+    : (ty * Ll.operand) list -> ins list
+    = function
+    | [] -> []
+    | (_, arg) :: args ->
+      prepare_args ctxt (succ n) args @ prepare_arg ctxt n arg
+  in
+  let open Asm in
+  let align_insn = [ Andq, [~$(-16); ~%Rsp] ] in
+  let push_arg_insn = prepare_args ctxt 0 args in
+  let stack_args = max 0 (List.length args - 6) in
+  let call_insn =
+    match op with
+    | Gid gid -> [ Callq, [ Imm (Lbl (Platform.mangle gid)) ] ]
+    | Id _ -> [ compile_operand ctxt ~%Rax op; Callq, [ ~%Rax ] ]
+    | _ -> raise (Invalid_insn "Invalid instruction operand")
+  in
+  let clean_up_insn =
+    if stack_args > 0
+    then [ Addq, [ ~$(stack_args * 8); ~%Rsp ] ]
+    else []
+  in
+  align_insn @ push_arg_insn @ call_insn @ clean_up_insn
 ;;
 
 (* The result of compiling a single LLVM instruction might be many x86
@@ -333,8 +356,6 @@ let rec prepare_args (ctxt : ctxt) (n : int)
 
    - Bitcast: does nothing interesting at the assembly level
 *)
-
-exception Invalid_insn of string
 
 let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
   let open Asm in
@@ -384,12 +405,7 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     ; Movq, [ ~%Rdx; lookup ctxt.layout uid ]
     ]
   | Call (Void, op, args) when callable op ->
-    prepare_args ctxt 0 args
-    @
-      (match op with
-      | Gid gid -> [ Callq, [ Imm (Lbl (Platform.mangle gid)) ] ]
-      | Id _ -> [ compile_operand ctxt ~%Rax op; Callq, [ ~%Rax ] ]
-      | _ -> raise (Invalid_insn "Invalid instruction operand"))
+    compile_call ctxt op args
   | Call (_, op, args) ->
     compile_insn ctxt (uid, Call (Void, op, args))
     @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
@@ -526,17 +542,11 @@ let compile_fdecl
   let open Asm in
   let stack = stack_layout f_param f_cfg in
   let stack_size = 8 * List.length stack in
-  let stack_size' =
-    if stack_size mod 16 = 0 then stack_size else stack_size + 8
-  in
   let ctxt = { tdecls; layout = stack } in
   let fn = Platform.mangle name in
   gtext
     fn
-    ([ Pushq, [ ~%Rbp ]
-     ; Movq, [ ~%Rsp; ~%Rbp ]
-     ; Subq, [ ~$stack_size'; ~%Rsp ]
-     ]
+    ([ Pushq, [ ~%Rbp ]; Movq, [ ~%Rsp; ~%Rbp ]; Subq, [ ~$stack_size; ~%Rsp ] ]
      @ snd
          (List.fold_left
             (fun (n, insn) param ->
