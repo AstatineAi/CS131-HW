@@ -526,11 +526,17 @@ let compile_fdecl
   let open Asm in
   let stack = stack_layout f_param f_cfg in
   let stack_size = 8 * List.length stack in
+  let stack_size' =
+    if stack_size mod 16 = 0 then stack_size else stack_size + 8
+  in
   let ctxt = { tdecls; layout = stack } in
   let fn = Platform.mangle name in
   gtext
     fn
-    ([ Pushq, [ ~%Rbp ]; Movq, [ ~%Rsp; ~%Rbp ]; Subq, [ ~$stack_size; ~%Rsp ] ]
+    ([ Pushq, [ ~%Rbp ]
+     ; Movq, [ ~%Rsp; ~%Rbp ]
+     ; Subq, [ ~$stack_size'; ~%Rsp ]
+     ]
      @ snd
          (List.fold_left
             (fun (n, insn) param ->
