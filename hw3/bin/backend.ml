@@ -385,7 +385,11 @@ let rec compile_insn (ctxt : ctxt) ((uid : uid), (i : Ll.insn)) : X86.ins list =
     ]
   | Call (Void, op, args) when callable op ->
     prepare_args ctxt 0 args
-    @ [ compile_operand ctxt ~%Rax op; Callq, [ ~%Rax ] ]
+    @
+      (match op with
+      | Gid gid -> [ Callq, [ Imm (Lbl (Platform.mangle gid)) ] ]
+      | Id _ -> [ compile_operand ctxt ~%Rax op; Callq, [ ~%Rax ] ]
+      | _ -> raise (Invalid_insn "Invalid instruction operand"))
   | Call (_, op, args) ->
     compile_insn ctxt (uid, Call (Void, op, args))
     @ [ Movq, [ ~%Rax; lookup ctxt.layout uid ] ]
