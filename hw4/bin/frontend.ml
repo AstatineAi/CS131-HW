@@ -513,7 +513,19 @@ let cmp_global_ctxt (c : Ctxt.t) (p : Ast.prog) : Ctxt.t =
 let cmp_fdecl (c : Ctxt.t) (f : Ast.fdecl node)
   : Ll.fdecl * (Ll.gid * Ll.gdecl) list
   =
-  failwith "cmp_fdecl not implemented"
+  let { elt = { frtyp; args; body } } = f in
+  let f_ty = List.map (fun (arg, _) -> cmp_ty arg) args, cmp_ret_ty frtyp in
+  let f_param = List.map snd args in
+  (* TODO:
+     1. allocate stack space for function parameters and store them
+     2. extend the context with bindings for function variables
+     3. Not sure whether the following is correct
+  *)
+  let f_cfg, gdecls =
+    cfg_of_stream (snd @@ cmp_block c (cmp_ret_ty frtyp) body)
+  in
+  let fdecl = { f_ty; f_param; f_cfg } in
+  fdecl, gdecls
 ;;
 
 (* Compile a global initializer, returning the resulting LLVMlite global
