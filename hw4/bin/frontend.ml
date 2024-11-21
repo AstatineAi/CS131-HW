@@ -479,7 +479,24 @@ let cmp_function_ctxt (c : Ctxt.t) (p : Ast.prog) : Ctxt.t =
    in well-formed programs. (The constructors starting with C).
 *)
 let cmp_global_ctxt (c : Ctxt.t) (p : Ast.prog) : Ctxt.t =
-  failwith "cmp_global_ctxt unimplemented"
+  let open Ast in
+  let type_of_exp (exp : exp node) : ty =
+    match exp.elt with
+    | CNull rty -> TRef rty
+    | CBool _ -> TBool
+    | CInt _ -> TInt
+    | CStr _ -> TRef RString
+    | CArr (t, _) -> TRef (RArray t)
+    | NewArr (t, _) -> TRef (RArray t)
+    | _ -> failwith "cmp_global_ctxt: invalid initializer"
+  in
+  List.fold_left
+    (fun c -> function
+      | Ast.Gvdecl { elt = { name; init } } ->
+        Ctxt.add c name (cmp_ty (type_of_exp init), Gid name)
+      | _ -> c)
+    c
+    p
 ;;
 
 (* Compile a function declaration in global context c. Return the LLVMlite cfg
