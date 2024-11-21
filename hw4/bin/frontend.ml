@@ -343,6 +343,34 @@ let oat_alloc_array (t : Ast.ty) (size : Ll.operand) : Ll.ty * operand * stream 
       ] )
 ;;
 
+(* Compiles 3 types of binary operations: arithmetic, logical, and comparison.
+   The operands are assumed to have the same type. *)
+
+let cmp_binop
+  (b : Ast.binop)
+  (ty : Ll.ty)
+  (op1 : Ll.operand)
+  (op2 : Ll.operand)
+  (res : Ll.uid)
+  : stream
+  =
+  match b with
+  | Add | Mul | Sub | Shl | Shr | Sar | IAnd | IOr ->
+    [ I (res, Binop (opr_of_arith_bop b, ty, op1, op2)) ]
+  | Eq | Neq | Lt | Lte | Gt | Gte ->
+    [ I (res, Icmp (opr_of_cmp_bop b, ty, op1, op2)) ]
+  | And | Or -> [ I (res, Binop (opr_of_logical_bop b, ty, op1, op2)) ]
+;;
+
+(* Compiles a left-hand-side expression in context c, outputting the Ll operand
+   that will recieve the address of the expression, and the stream of instructions
+   implementing the expression.
+*)
+let cmp_lhs (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
+  match exp.elt with
+  | _ -> failwith "cmp_lhs: invalid left-hand-side"
+;;
+
 (* Compiles an expression exp in context c, outputting the Ll operand that will
    recieve the value of the expression, and the stream of instructions
    implementing the expression.
