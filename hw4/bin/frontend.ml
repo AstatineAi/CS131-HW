@@ -387,7 +387,33 @@ let cmp_lhs (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
      (CArr) and the (NewArr) expressions
 *)
 let rec cmp_exp (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
-  failwith "cmp_exp unimplemented"
+  match exp.elt with
+  | CNull rty -> Ptr (cmp_rty rty), Null, []
+  | CBool x -> if x then I1, Const 1L, [] else I1, Const 0L, []
+  | CInt x -> I64, Const x, []
+  | CStr s ->
+    let lit_gid = gensym "str_lit" in
+    Ptr I8, Gid lit_gid, [ G (lit_gid, (Ptr I8, GString s)) ]
+  | CArr (t, es) -> failwith "cmp_exp CArr not implemented"
+  | NewArr (t, e) -> failwith "cmp_exp NewArr not implemented"
+  | Id x -> failwith "cmp_exp Id not implemented"
+  | Index (e1, e2) -> failwith "cmp_exp Index not implemented"
+  | Call (e, es) -> failwith "cmp_exp Call not implemented"
+  | Bop (b, e1, e2) ->
+    let res = gensym "bop" in
+    let _, _, res_ty = typ_of_binop b in
+    let op_ty, op1, op1_code = cmp_exp c e1 in
+    let _, op2, op2_code = cmp_exp c e2 in
+    ( cmp_ty res_ty
+    , Ll.Id res
+    , op1_code @ op2_code @ cmp_binop b op_ty op1 op2 res )
+  | Uop (u, e) ->
+    let res = gensym "uop" in
+    let _, op, op_code = cmp_exp c e in
+    (match u with
+     | Neg -> I64, Ll.Id res, [ I (res, Binop (Sub, I64, Const 0L, op)) ]
+     | Lognot -> I1, Ll.Id res, [ I (res, Binop (Xor, I1, Const 1L, op)) ]
+     | Bitnot -> I64, Ll.Id res, [ I (res, Binop (Xor, I64, Const (-1L), op)) ])
 ;;
 
 (* Compile a statement in context c with return typ rt. Return a new context,
