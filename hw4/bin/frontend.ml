@@ -540,7 +540,29 @@ let cmp_fdecl (c : Ctxt.t) (f : Ast.fdecl node)
      be an array of pointers to arrays emitted as additional global declarations.
 *)
 let rec cmp_gexp c (e : Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.gdecl) list =
-  failwith "cmp_init not implemented"
+  match e.elt with
+  | CNull rty -> (Ptr (cmp_rty rty), GNull), []
+  | CBool x -> (I1, GInt (if x then 1L else 0L)), []
+  | CInt x -> (I64, GInt x), []
+  | CStr s -> (Ptr I8, GString s), []
+  | CArr (t, es) ->
+    let len = List.length es in
+    let elem_ty = cmp_ty t in
+    let data_arr_ty = Array (len, elem_ty) in
+    let arr_ty = Struct [ I64; data_arr_ty ] in
+    (* TODO:
+       1. cmp_gexp for each element
+       2. if element is an array, give it a name
+       3. put the decls of subarrays in the list of global declarations
+       4. put ptrs to subarrays in the list of main array decls
+    *)
+    ( ( arr_ty
+      , GStruct
+          [ I64, GInt (Int64.of_int len)
+          ; data_arr_ty, GArray [ (* ptrs to subarrays or just the elements *) ]
+          ] )
+    , [ (* optional subarray decls with name *) ] )
+  | _ -> failwith "cmp_gexp: invalid global initializer"
 ;;
 
 (* Oat internals function context ------------------------------------------- *)
