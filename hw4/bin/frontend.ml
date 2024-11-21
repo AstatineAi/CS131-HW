@@ -151,6 +151,37 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
   | Lognot -> TBool, TBool
 ;;
 
+(* Get the LLVMlite binary operator corresponding to an arithmetic binary operator *)
+let opr_of_arith_bop : Ast.binop -> Ll.bop = function
+  | Add -> Add
+  | Mul -> Mul
+  | Sub -> Sub
+  | IAnd -> And
+  | IOr -> Or
+  | Shl -> Shl
+  | Shr -> Lshr
+  | Sar -> Ashr
+  | _ -> failwith "opr_of_arth_bop: invalid arithmetic operator"
+;;
+
+(* Get the LLVMlite binary operator corresponding to a logical binary operator *)
+let opr_of_logical_bop : Ast.binop -> Ll.bop = function
+  | And -> And
+  | Or -> Or
+  | _ -> failwith "opr_of_logical_bop: invalid logical operator"
+;;
+
+(* Get the LLVMlite comparison operator corresponding to a comparison binary operator *)
+let opr_of_cmp_bop : Ast.binop -> Ll.cnd = function
+  | Eq -> Eq
+  | Neq -> Ne
+  | Lt -> Slt
+  | Lte -> Sle
+  | Gt -> Sgt
+  | Gte -> Sge
+  | _ -> failwith "opr_of_cmp_bop: invalid comparison operator"
+;;
+
 (* Compiler Invariants
 
    The LLVM IR type of a variable (whether global or local) that stores an Oat
