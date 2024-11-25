@@ -150,6 +150,23 @@ let cmp_deref : Ll.ty -> Ll.ty = function
   | _ -> failwith "cmp_deref: not a pointer"
 ;;
 
+let cmp_args_ret (fty : Ll.ty) : Ll.ty list * Ll.ty =
+  match fty with
+  | Ptr (Fun (args, ret)) -> args, ret
+  | _ -> failwith "cmp_call_ty: invalid calling type"
+;;
+
+let cmp_func_ty (c : Ctxt.t) (exp : exp node)
+  : Ll.ty * Ll.ty * Ll.operand * Ll.ty list
+  =
+  match exp.elt with
+  | Id id ->
+    let fty, fop = Ctxt.lookup_function id c in
+    let args, ret = cmp_args_ret fty in
+    fty, ret, fop, args
+  | _ -> failwith "cmp_call_exp: invalid call expression"
+;;
+
 let rec print_type : Ll.ty -> unit = function
   | Void -> print_string "void"
   | I1 -> print_string "i1"
@@ -572,7 +589,22 @@ and cmp_exp (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
     let ty, dst, s = cmp_lhs c exp in
     let result = gensym "index_load" in
     cmp_deref ty, Id result, s >:: I (result, Load (ty, dst))
-  | Call (e, es) -> failwith "cmp_exp Call not implemented"
+  | Call (e, es) ->
+    let fty, ret_ty, fop, _ = cmp_func_ty c e in
+    let ops, ss =
+      List.fold_left
+        (fun (acc_ops, acc_ss) e ->
+          let ty, op, s = cmp_exp c e in
+          (ty, op) :: acc_ops, s >@ acc_ss)
+        ([], [])
+        es
+    in
+    let ops = List.rev ops in
+    (match ret_ty with
+    | Void -> Void, Null, ss >:: I ("", Call (ret_ty, fop, ops))
+    | _ ->
+      let res = gensym "call" in
+      ret_ty, Id res, ss >:: I (res, Call (ret_ty, fop, ops)))
   | Bop (b, e1, e2) ->
     let res = gensym "bop" in
     let _, _, res_ty = typ_of_binop b in
@@ -623,13 +655,17 @@ and cmp_stmt (c : Ctxt.t) (rt : Ll.ty) (stmt : Ast.stmt node) : Ctxt.t * stream 
     let rty, rop, rs = cmp_exp c rhs in
     c, rs >@ ls >:: I (gensym "store", Store (rty, rop, lop))
   | Decl (id, elt) ->
+    let decl_id = gensym id in
     let ty, op, s = cmp_exp c elt in
-    ( Ctxt.add c id (Ptr ty, Id id)
-    , s >:: E (id, Alloca ty) >:: I ("", Store (ty, op, Id id)) )
+    ( Ctxt.add c id (Ptr ty, Id decl_id)
+    , s >:: E (decl_id, Alloca ty) >:: I ("", Store (ty, op, Id decl_id)) )
   | Ret None -> c, [ T (Ret (rt, None)) ]
   | Ret (Some elt) ->
     let _, op, stream = cmp_exp c elt in
     c, stream >@ [ T (Ret (rt, Some op)) ]
+  | SCall (e, es) ->
+    let _, _, s = cmp_exp c (no_loc (Call (e, es))) in
+    c, s
   | If (cond, tbr, fbr) ->
     let if_cond = gensym "cond" in
     let tbr' = genlbl "tbr" in
@@ -678,7 +714,6 @@ and cmp_stmt (c : Ctxt.t) (rt : Ll.ty) (stmt : Ast.stmt node) : Ctxt.t * stream 
       >@ blks
       >:: T (Br loop_cond)
       >:: L loop_end )
-  | _ -> failwith "cmp_stmt not implemented"
 
 (* Compile a series of statements *)
 and cmp_block (c : Ctxt.t) (rt : Ll.ty) (stmts : Ast.block) : Ctxt.t * stream =
@@ -750,14 +785,31 @@ let cmp_fdecl (c : Ctxt.t) (f : Ast.fdecl node)
   let { elt = { frtyp; args; body } } = f in
   let f_ty = List.map (fun (arg, _) -> cmp_ty arg) args, cmp_ret_ty frtyp in
   let f_param = List.map snd args in
-  (* TODO:
-     1. allocate stack space for function parameters and store them
-     2. extend the context with bindings for function variables
-     3. Not sure whether the following is correct
-  *)
-  let f_cfg, gdecls =
-    cfg_of_stream (snd @@ cmp_block c (cmp_ret_ty frtyp) body)
+  let copy_arg (c : Ctxt.t) ((arg, id) : Ast.ty * Ast.id) (param : Ll.uid)
+    : Ctxt.t * (uid * insn) list
+    =
+    let arg_ty = cmp_ty arg in
+    let c' = Ctxt.add c id (Ptr arg_ty, Id param) in
+    let alloca = param, Alloca arg_ty in
+    let store = "", Store (arg_ty, Id id, Id param) in
+    c', [ alloca; store ]
   in
+  let c', param_code =
+    List.fold_left
+      (fun (c, code) (arg, id) ->
+        let c', code' = copy_arg c (arg, id) (gensym id) in
+        c', code @ code')
+      (c, [])
+      args
+  in
+  let begin_lbl = genlbl "begin" in
+  (* Add the label to the beginning of the function *)
+  (* Jump to that label after copying the arguments *)
+  let param_block = { insns = param_code; term = "", Br begin_lbl } in
+  let (f_entry, f_body_cfg), gdecls =
+    cfg_of_stream (snd @@ cmp_block c' (cmp_ret_ty frtyp) body)
+  in
+  let f_cfg = param_block, (begin_lbl, f_entry) :: f_body_cfg in
   let fdecl = { f_ty; f_param; f_cfg } in
   fdecl, gdecls
 ;;
@@ -778,7 +830,10 @@ let rec cmp_gexp c (e : Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.gdecl) list =
   | CNull rty -> (Ptr (cmp_rty rty), GNull), []
   | CBool x -> (I1, GInt (if x then 1L else 0L)), []
   | CInt x -> (I64, GInt x), []
-  | CStr s -> (Array (String.length s + 1, I8), GString s), []
+  | CStr s -> 
+    let real_str = gensym "real_str" in
+    (Ptr I8, GGid real_str), [ (real_str, (Array (String.length s + 1, I8), GString s)) ]
+    (* (Array (String.length s + 1, I8), GString s), [] *)
   | CArr (t, es) ->
     let len = List.length es in
     let elem_ty = cmp_ty t in
