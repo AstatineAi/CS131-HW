@@ -167,40 +167,6 @@ let cmp_func_ty (c : Ctxt.t) (exp : exp node)
   | _ -> failwith "cmp_call_exp: invalid call expression"
 ;;
 
-let rec print_type : Ll.ty -> unit = function
-  | Void -> print_string "void"
-  | I1 -> print_string "i1"
-  | I8 -> print_string "i8"
-  | I64 -> print_string "i64"
-  | Ptr t ->
-    print_string "ptr ";
-    print_type t
-  | Struct ts ->
-    print_string "{";
-    List.iter
-      (fun t ->
-        print_type t;
-        print_string ", ")
-      ts;
-    print_string "}"
-  | Array (n, t) ->
-    Printf.printf "[%d x " n;
-    print_type t;
-    print_string "]"
-  | Fun (ts, t) ->
-    print_string "fun (";
-    List.iter
-      (fun t ->
-        print_type t;
-        print_string ", ")
-      ts;
-    print_string ") -> ";
-    print_type t
-  | Namedt s -> Printf.printf "%%%s" s
-;;
-
-(* | _ -> failwith "cmp_ety: not an array" *)
-
 let typ_of_binop : Ast.binop -> Ast.ty * Ast.ty * Ast.ty = function
   | Add | Mul | Sub | Shl | Shr | Sar | IAnd | IOr -> TInt, TInt, TInt
   | Eq | Neq | Lt | Lte | Gt | Gte -> TInt, TInt, TBool
@@ -212,7 +178,6 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
   | Lognot -> TBool, TBool
 ;;
 
-(* Get the LLVMlite binary operator corresponding to an arithmetic binary operator *)
 let opr_of_arith_bop : Ast.binop -> Ll.bop = function
   | Add -> Add
   | Mul -> Mul
@@ -225,14 +190,12 @@ let opr_of_arith_bop : Ast.binop -> Ll.bop = function
   | _ -> failwith "opr_of_arth_bop: invalid arithmetic operator"
 ;;
 
-(* Get the LLVMlite binary operator corresponding to a logical binary operator *)
 let opr_of_logical_bop : Ast.binop -> Ll.bop = function
   | And -> And
   | Or -> Or
   | _ -> failwith "opr_of_logical_bop: invalid logical operator"
 ;;
 
-(* Get the LLVMlite comparison operator corresponding to a comparison binary operator *)
 let opr_of_cmp_bop : Ast.binop -> Ll.cnd = function
   | Eq -> Eq
   | Neq -> Ne
@@ -440,33 +403,15 @@ let rec cmp_lhs (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream 
   | Id id ->
     let ty, op = Ctxt.lookup id c in
     ty, op, []
-  (* | Index ({ elt = Id arr }, exp) ->
-    let ty, op = Ctxt.lookup arr c in
-    let ty' = cmp_deref ty in
-    let arr = gensym "load" in
-    let ety = cmp_ety ty' in
-    let _, op', s = cmp_exp c exp in
-    let result = gensym "index" in
-    ( Ptr ety
-    , Id result
-    , s
-      >:: I (arr, Load (ty, op))
-      >:: I (result, Gep (ty', Id arr, [ Const 0L; Const 1L; op' ])) ) *)
   | Index (base, idx) ->
     let ty, bop, bs = cmp_exp c base in
-    (* print_type ty; *)
-    (* print_endline ""; *)
     let ety = cmp_ety ty in
-    (* print_type ety; *)
     let _, iop, is = cmp_exp c idx in
     let result = gensym "index" in
     ( Ptr ety
     , Id result
     , bs >@ is >:: I (result, Gep (ty, bop, [ Const 0L; Const 1L; iop ])) )
-    (* let _, op, s = cmp_lhs c base in
-       cmp_lhs c (no_loc (Index (no_loc (Id op), idx))) *)
   | _ -> failwith "cmp_lhs: invalid left-hand-side"
-(* | _ -> print_string "cmp_lhs: invalid left-hand-side"; Ptr Void, Null, [] *)
 
 (* Compiles an expression exp in context c, outputting the Ll operand that will
    recieve the value of the expression, and the stream of instructions
@@ -549,43 +494,11 @@ and cmp_exp (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
       >:: I ("", Store (ty, op, Id tmp))
       >:: I ("", Store (I64, sz, Id oatsz))
       >@ fors )
-  (*
-     (* let _, sz, s1 = cmp_exp c e in
-     let ty, op, s2 = cmp_exp c (no_loc (CArr ())) in
-     ty, op, s1 >@ s2 *)
-     (* TODO: create a foor loop for default initialization of each elements *)
-     For (
-     (* no_loc (Decl (tmp, e)),
-     no_loc (Bop (Lt, Id tmp, e)),
-     no_loc (Uop (Neg, Id tmp)),
-     no_loc (Assn (Index (no_loc (Id tmp), e), CInt 0L) *)
-     )
-     ) *)
-  (*
-     let ty, op, s =
-      oat_alloc_array t (Const (Int64.of_int @@ List.length es))
-    in
-    let tmp = gensym "tmp" in
-    let c' = Ctxt.add c tmp (Ptr ty, Id tmp) in
-    let cmp_elt_assn (idx : int64) : stream =
-      let _, dst, s2 =
-        cmp_lhs c' (no_loc (Index (no_loc (Id tmp), no_loc (CInt idx))))
-      in
-      s1 >@ s2 >:: I ("", Store (cmp_ty t, (Const 0L), dst))
-    in
-    let _, assns =
-      List.fold_left
-        (fun (acc, ss) e -> Int64.succ acc, ss >@ cmp_elt_assn acc e)
-        (0L, [])
-        es
-    in
-    ty, op, s >:: I (tmp, Alloca ty) >:: I ("", Store (ty, op, Id tmp)) >@ assns *)
   | Id x ->
     let x' = gensym "exp" in
     let ty, op = Ctxt.lookup x c in
     cmp_deref ty, Id x', [ I (x', Load (ty, op)) ]
   | Index _ ->
-    (* TODO *)
     let ty, dst, s = cmp_lhs c exp in
     let result = gensym "index_load" in
     cmp_deref ty, Id result, s >:: I (result, Load (ty, dst))
@@ -601,10 +514,10 @@ and cmp_exp (c : Ctxt.t) (exp : Ast.exp node) : Ll.ty * Ll.operand * stream =
     in
     let ops = List.rev ops in
     (match ret_ty with
-    | Void -> Void, Null, ss >:: I ("", Call (ret_ty, fop, ops))
-    | _ ->
-      let res = gensym "call" in
-      ret_ty, Id res, ss >:: I (res, Call (ret_ty, fop, ops)))
+     | Void -> Void, Null, ss >:: I ("", Call (ret_ty, fop, ops))
+     | _ ->
+       let res = gensym "call" in
+       ret_ty, Id res, ss >:: I (res, Call (ret_ty, fop, ops)))
   | Bop (b, e1, e2) ->
     let res = gensym "bop" in
     let _, _, res_ty = typ_of_binop b in
@@ -803,8 +716,6 @@ let cmp_fdecl (c : Ctxt.t) (f : Ast.fdecl node)
       args
   in
   let begin_lbl = genlbl "begin" in
-  (* Add the label to the beginning of the function *)
-  (* Jump to that label after copying the arguments *)
   let param_block = { insns = param_code; term = "", Br begin_lbl } in
   let (f_entry, f_body_cfg), gdecls =
     cfg_of_stream (snd @@ cmp_block c' (cmp_ret_ty frtyp) body)
@@ -830,34 +741,25 @@ let rec cmp_gexp c (e : Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.gdecl) list =
   | CNull rty -> (Ptr (cmp_rty rty), GNull), []
   | CBool x -> (I1, GInt (if x then 1L else 0L)), []
   | CInt x -> (I64, GInt x), []
-  | CStr s -> 
+  | CStr s ->
     let real_str = gensym "real_str" in
-    (Ptr I8, GGid real_str), [ (real_str, (Array (String.length s + 1, I8), GString s)) ]
-    (* (Array (String.length s + 1, I8), GString s), [] *)
+    ( (Ptr I8, GGid real_str)
+    , [ real_str, (Array (String.length s + 1, I8), GString s) ] )
   | CArr (t, es) ->
     let len = List.length es in
     let elem_ty = cmp_ty t in
     let data_arr_ty = Array (len, elem_ty) in
     let arr_ty = Struct [ I64; data_arr_ty ] in
     let real_array = gensym "real_array" in
-    (* TODO:
-       1. cmp_gexp for each element
-       2. if element is an array, give it a name
-       3. put the decls of subarrays in the list of global declarations
-       4. put ptrs to subarrays in the list of main array decls
-    *)
+    let contents = List.map (cmp_gexp c) es in
     ( (Ptr arr_ty, GGid real_array)
-    , [ (* optional subarray decls with name *)
-        ( real_array
-        , ( arr_ty
-          , GStruct
-              [ I64, GInt (Int64.of_int len)
-              ; ( data_arr_ty
-                , GArray
-                    (* ptrs to subarrays or just the elements *)
-                    (List.map (fun ee -> fst @@ cmp_gexp c ee) es) )
-              ] ) )
-      ] )
+    , ( real_array
+      , ( arr_ty
+        , GStruct
+            [ I64, GInt (Int64.of_int len)
+            ; data_arr_ty, GArray (List.map fst contents)
+            ] ) )
+      :: (List.map snd contents |> List.flatten) )
   | _ -> failwith "cmp_gexp: invalid global initializer"
 ;;
 
