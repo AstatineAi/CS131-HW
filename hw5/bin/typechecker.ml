@@ -7,35 +7,38 @@ open Tctxt
 
 exception TypeError of string
 
-let type_error (l : 'a node) (err : string) = 
-  let (_, (s, e), _) = l.loc in
+let type_error (l : 'a node) (err : string) =
+  let _, (s, e), _ = l.loc in
   raise (TypeError (Printf.sprintf "[%d, %d] %s" s e err))
-
+;;
 
 (* initial context: G0 ------------------------------------------------------ *)
 (* The Oat types of the Oat built-in functions *)
 let builtins =
-  [ "array_of_string",  ([TRef RString],  RetVal (TRef(RArray TInt)))
-  ; "string_of_array",  ([TRef(RArray TInt)], RetVal (TRef RString))
-  ; "length_of_string", ([TRef RString],  RetVal TInt)
-  ; "string_of_int",    ([TInt], RetVal (TRef RString))
-  ; "string_cat",       ([TRef RString; TRef RString], RetVal (TRef RString))
-  ; "print_string",     ([TRef RString],  RetVoid)
-  ; "print_int",        ([TInt], RetVoid)
-  ; "print_bool",       ([TBool], RetVoid)
+  [ "array_of_string", ([ TRef RString ], RetVal (TRef (RArray TInt)))
+  ; "string_of_array", ([ TRef (RArray TInt) ], RetVal (TRef RString))
+  ; "length_of_string", ([ TRef RString ], RetVal TInt)
+  ; "string_of_int", ([ TInt ], RetVal (TRef RString))
+  ; "string_cat", ([ TRef RString; TRef RString ], RetVal (TRef RString))
+  ; "print_string", ([ TRef RString ], RetVoid)
+  ; "print_int", ([ TInt ], RetVoid)
+  ; "print_bool", ([ TBool ], RetVoid)
   ]
+;;
 
 (* binary operation types --------------------------------------------------- *)
 let typ_of_binop : Ast.binop -> Ast.ty * Ast.ty * Ast.ty = function
-  | Add | Mul | Sub | Shl | Shr | Sar | IAnd | IOr -> (TInt, TInt, TInt)
-  | Lt | Lte | Gt | Gte -> (TInt, TInt, TBool)
-  | And | Or -> (TBool, TBool, TBool)
+  | Add | Mul | Sub | Shl | Shr | Sar | IAnd | IOr -> TInt, TInt, TInt
+  | Lt | Lte | Gt | Gte -> TInt, TInt, TBool
+  | And | Or -> TBool, TBool, TBool
   | Eq | Neq -> failwith "typ_of_binop called on polymorphic == or !="
+;;
 
 (* unary operation types ---------------------------------------------------- *)
 let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
-  | Neg | Bitnot -> (TInt, TInt)
-  | Lognot       -> (TBool, TBool)
+  | Neg | Bitnot -> TInt, TInt
+  | Lognot -> TBool, TBool
+;;
 
 (* subtyping ---------------------------------------------------------------- *)
 (* Decides whether H |- t1 <: t2 
@@ -52,7 +55,7 @@ let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
 (* Decides whether H |-r ref1 <: ref2 *)
 and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   failwith "todo: subtype_ref"
-
+;;
 
 (* well-formed types -------------------------------------------------------- *)
 (* Implement a (set of) functions that check that types are well formed according
@@ -71,13 +74,14 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
  *)
 let rec typecheck_ty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ty) : unit =
   failwith "todo: implement typecheck_ty"
-
+;;
 
 (* A helper function to determine whether a type allows the null value *)
 let is_nullable_ty (t : Ast.ty) : bool =
   match t with
   | TNullRef _ -> true
   | _ -> false
+;;
 
 (* typechecking expressions ------------------------------------------------- *)
 (* Typechecks an expression in the typing context c, returns the type of the
@@ -106,6 +110,7 @@ let is_nullable_ty (t : Ast.ty) : bool =
 *)
 let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
   failwith "todo: implement typecheck_exp"
+;;
 
 (* statements --------------------------------------------------------------- *)
 
@@ -144,9 +149,11 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
    - You will probably find it convenient to add a helper function that implements the 
      block typecheck rules.
 *)
-let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.t * bool =
+let rec typecheck_stmt (tc : Tctxt.t) (s : Ast.stmt node) (to_ret : ret_ty)
+  : Tctxt.t * bool
+  =
   failwith "todo: implement typecheck_stmt"
-
+;;
 
 (* struct type declarations ------------------------------------------------- *)
 (* Here is an example of how to implement the TYP_TDECLOK rule, which is 
@@ -157,12 +164,21 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
 let rec check_dups (fs : field list) =
   match fs with
   | [] -> false
-  | h :: t -> (List.exists (fun x -> x.fieldName = h.fieldName) t) || check_dups t
+  | h :: t ->
+    List.exists (fun x -> x.fieldName = h.fieldName) t || check_dups t
+;;
 
-let typecheck_tdecl (tc : Tctxt.t) (id : id) (fs : field list)  (l : 'a Ast.node) : unit =
+let typecheck_tdecl
+      (tc : Tctxt.t)
+      (id : id)
+      (fs : field list)
+      (l : 'a Ast.node)
+  : unit
+  =
   if check_dups fs
-  then type_error l ("Repeated fields in " ^ id) 
+  then type_error l ("Repeated fields in " ^ id)
   else List.iter (fun f -> typecheck_ty l tc f.ftyp) fs
+;;
 
 (* function declarations ---------------------------------------------------- *)
 (* typecheck a function declaration 
@@ -174,6 +190,7 @@ let typecheck_tdecl (tc : Tctxt.t) (id : id) (fs : field list)  (l : 'a Ast.node
 *)
 let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
   failwith "todo: typecheck_fdecl"
+;;
 
 (* creating the typchecking context ----------------------------------------- *)
 
@@ -203,25 +220,30 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
    constants, but can mention only other global values that were declared earlier
 *)
 
-let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
+let create_struct_ctxt (p : Ast.prog) : Tctxt.t =
   failwith "todo: create_struct_ctxt"
+;;
 
-let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
+let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
   failwith "todo: create_function_ctxt"
+;;
 
-let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
+let create_global_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
   failwith "todo: create_function_ctxt"
-
+;;
 
 (* This function implements the |- prog and the H ; G |- prog 
-   rules of the oat.pdf specification.   
+   rules of the oat.pdf specification.
 *)
-let typecheck_program (p:Ast.prog) : unit =
+let typecheck_program (p : Ast.prog) : unit =
   let sc = create_struct_ctxt p in
   let fc = create_function_ctxt sc p in
   let tc = create_global_ctxt fc p in
-  List.iter (fun p ->
-    match p with
-    | Gfdecl ({elt=f} as l) -> typecheck_fdecl tc f l
-    | Gtdecl ({elt=(id, fs)} as l) -> typecheck_tdecl tc id fs l 
-    | _ -> ()) p
+  List.iter
+    (fun p ->
+       match p with
+       | Gfdecl ({ elt = f } as l) -> typecheck_fdecl tc f l
+       | Gtdecl ({ elt = id, fs } as l) -> typecheck_tdecl tc id fs l
+       | _ -> ())
+    p
+;;
