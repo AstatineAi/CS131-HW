@@ -294,7 +294,16 @@ let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
 ;;
 
 let create_global_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+  List.fold_left
+    (fun c decl ->
+      match decl with
+      | Gvdecl ({ elt = { name; init } } as t) ->
+        if Tctxt.lookup_global_option name c <> None
+        then type_error t ("multiple definition of global " ^ name);
+        Tctxt.add_global c name (typecheck_exp c init)
+      | _ -> c)
+    tc
+    p
 ;;
 
 (* This function implements the |- prog and the H ; G |- prog
