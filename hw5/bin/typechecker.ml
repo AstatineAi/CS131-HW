@@ -63,22 +63,23 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   | RString, RString -> true
   | RArray t1, RArray t2 when t1 = t2 -> true
   | RStruct id1, RStruct id2 ->
-    let srtf = List.sort (fun a b -> String.compare a.fieldName b.fieldName) in
-    let totyp = List.map (fun f -> f.ftyp) in
     let t1 = Tctxt.lookup_struct id1 c in
     let t2 = Tctxt.lookup_struct id2 c in
-    let f2 = srtf t2 in
-    let f1 =
-      t1
-      |> List.filter (fun a ->
-        List.exists (fun b -> a.fieldName = b.fieldName) f2)
-      |> srtf
-    in
-    let t1 = totyp f1 in
-    let t2 = totyp f2 in
-    List.for_all2 (subtype c) t1 t2
+    subtype_struct c t1 t2
   | RFun (p1, rt1), RFun (p2, rt2) ->
     List.for_all2 (subtype c) p1 p2 && subtype_ret c rt1 rt2
+  | _ -> false
+
+and same_ty (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
+  subtype c t1 t2 && subtype c t2 t1
+
+and subtype_struct (c : Tctxt.t) (a : field list) (b : field list) : bool =
+  match a, b with
+  | _, [] -> true
+  | h1 :: t1, h2 :: t2 ->
+    h1.fieldName = h2.fieldName
+    && same_ty c h1.ftyp h2.ftyp
+    && subtype_struct c t1 t2
   | _ -> false
 
 (* Decides whether H |-rt rt1 <: rt2 *)
