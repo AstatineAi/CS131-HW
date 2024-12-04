@@ -66,7 +66,8 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
     let t2 = Tctxt.lookup_struct id2 c in
     subtype_struct c t1 t2
   | RFun (p1, rt1), RFun (p2, rt2) ->
-    List.for_all2 (subtype c) p1 p2 && subtype_ret c rt1 rt2
+    (try List.for_all2 (subtype c) p1 p2 && subtype_ret c rt1 rt2 with
+     | _ -> false)
   | _ -> false
 
 and same_ty (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
@@ -225,7 +226,8 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
          | _ -> type_error e "typ_structex"
        in
        let fs = fs |> sort_fields |> totyp in
-       if List.for_all2 (subtype c) fs ts
+       if try List.for_all2 (subtype c) fs ts with
+          | _ -> type_error e "typ_structex"
        then TRef (RStruct id)
        else type_error e "typ_structex"
      | None -> type_error e "typ_structex")
@@ -240,7 +242,10 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
     (match typecheck_exp c exp with
      | TRef (RFun (p, RetVal rt)) ->
        let ts = List.map (typecheck_exp c) es in
-       if List.for_all2 (subtype c) ts p then rt else type_error e "typ_call 0"
+       if try List.for_all2 (subtype c) ts p with
+          | _ -> type_error e "typ_call"
+       then rt
+       else type_error e "typ_call 0"
      | _ -> type_error e "typ_call")
   | Bop (op, exp1, exp2) when op = Eq || op = Neq ->
     let t1 = typecheck_exp c exp1 in
@@ -324,7 +329,8 @@ let rec typecheck_stmt (tc : Tctxt.t) (s : Ast.stmt node) (to_ret : ret_ty)
     (match t with
      | TRef (RFun (p, RetVoid)) ->
        let ts = List.map (typecheck_exp tc) es in
-       if List.for_all2 (subtype tc) ts p
+       if try List.for_all2 (subtype tc) ts p with
+          | _ -> type_error s "typ_scall"
        then tc, false
        else type_error s "typ_scall"
      | _ -> type_error s "typ_scall")
