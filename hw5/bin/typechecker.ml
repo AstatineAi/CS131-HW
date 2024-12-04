@@ -159,7 +159,104 @@ let is_nullable_ty (t : Ast.ty) : bool =
    a=1} is well typed.  (You should sort the fields to compare them.)
 *)
 let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
-  failwith "todo: implement typecheck_exp"
+  match e.elt with
+  | CNull t ->
+    (try typecheck_ty e c (TRef t) with
+     | _ -> type_error e "typ_null");
+    TNullRef t
+  | CBool _ -> TBool
+  | CInt _ -> TInt
+  | CStr _ -> TRef RString
+  | Id id ->
+    (match Tctxt.lookup_local_option id c with
+     | Some t -> t
+     | _ ->
+       (match Tctxt.lookup_global_option id c with
+        | Some t -> t
+        | _ -> type_error e "typ_local and typ_global"))
+  | CArr (t, es) ->
+    typecheck_ty e c t;
+    let ts =
+      try List.map (typecheck_exp c) es with
+      | _ -> type_error e "typ_carr"
+    in
+    if List.for_all (fun t' -> subtype c t' t) ts
+    then TRef (RArray t)
+    else type_error e "typ_carr"
+  | NewArr (t, exp) ->
+    typecheck_ty e c t;
+    if typecheck_exp c exp <> TInt then type_error e "typ_newarray";
+    (match t with
+     | TInt | TBool | TNullRef _ -> ()
+     | _ -> type_error e "typ_newarray");
+    TRef (RArray t)
+  | NewArrInit (t, exp1, id, exp2) ->
+    typecheck_ty e c t;
+    if typecheck_exp c exp1 <> TInt || Tctxt.lookup_local_option id c <> None
+    then type_error e "typ_newarrayinit";
+    let c' = Tctxt.add_local c id TInt in
+    let t' = typecheck_exp c' exp2 in
+    if not @@ subtype c' t' t then type_error e "typ_newarrayinit";
+    TRef (RArray t)
+  | Index (exp1, exp2) ->
+    let t1 = typecheck_exp c exp1 in
+    let t2 = typecheck_exp c exp2 in
+    (match t1 with
+     | TRef (RArray t) when t2 = TInt -> t
+     | _ -> type_error e "typ_index")
+  | Length exp ->
+    let _ = typecheck_exp c exp in
+    TInt
+  | CStruct (id, fs) ->
+    (match Tctxt.lookup_struct_option id c with
+     | Some ts ->
+       let sort_fields =
+         List.sort (fun a b -> String.compare a.fieldName b.fieldName)
+       in
+       let totyp = List.map (fun f -> f.ftyp) in
+       let ts = ts |> sort_fields |> totyp in
+       let fs =
+         try
+           List.map
+             (fun (id', exp) ->
+               { fieldName = id'; ftyp = typecheck_exp c exp })
+             fs
+         with
+         | _ -> type_error e "typ_structex"
+       in
+       let fs = fs |> sort_fields |> totyp in
+       if List.for_all2 (subtype c) fs ts
+       then TRef (RStruct id)
+       else type_error e "typ_structex"
+     | None -> type_error e "typ_structex")
+  | Proj (exp, id) ->
+    (match typecheck_exp c exp with
+     | TRef (RStruct s) ->
+       (match lookup_field_option s id c with
+        | Some t -> t
+        | None -> type_error e "typ_field")
+     | _ -> type_error e "typ_field")
+  | Call (exp, es) ->
+    (match typecheck_exp c exp with
+     | TRef (RFun (p, RetVal rt)) ->
+       let ts = List.map (typecheck_exp c) es in
+       if List.for_all2 (subtype c) ts p then rt else type_error e "typ_call 0"
+     | _ -> type_error e "typ_call")
+  | Bop (op, exp1, exp2) when op = Eq || op = Neq ->
+    let t1 = typecheck_exp c exp1 in
+    let t2 = typecheck_exp c exp2 in
+    if subtype c t1 t2 && subtype c t2 t1
+    then TBool
+    else type_error e "typ_(n)eq"
+  | Bop (op, lhs, rhs) ->
+    let t1, t2, t = typ_of_binop op in
+    let t1' = typecheck_exp c lhs in
+    let t2' = typecheck_exp c rhs in
+    if t1' = t1 && t2' = t2 then t else type_error e "typ_bop"
+  | Uop (op, exp) ->
+    let t1, t2 = typ_of_unop op in
+    let t = typecheck_exp c exp in
+    if t = t1 then t2 else type_error e "typ_uop"
 ;;
 
 (* statements --------------------------------------------------------------- *)
