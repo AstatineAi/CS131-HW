@@ -71,7 +71,26 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   | _ -> false
 
 and same_ty (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
-  subtype c t1 t2 && subtype c t2 t1
+  match t1, t2 with
+  | TBool, TBool | TInt, TInt -> true
+  | TNullRef t1, TNullRef t2 | TRef t1, TRef t2 -> same_refty c t1 t2
+  | _ -> false
+
+and same_refty (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
+  match t1, t2 with
+  | RString, RString -> true
+  | RArray t1, RArray t2 -> same_ty c t1 t2
+  | RStruct id1, RStruct id2 -> id1 = id2
+  | RFun (p1, rt1), RFun (p2, rt2) ->
+    (try List.for_all2 (same_ty c) p2 p1 && same_retty c rt1 rt2 with
+     | _ -> false)
+  | _ -> false
+
+and same_retty (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
+  match t1, t2 with
+  | RetVoid, RetVoid -> true
+  | RetVal t1, RetVal t2 -> same_ty c t1 t2
+  | _ -> false
 
 and subtype_struct (c : Tctxt.t) (a : field list) (b : field list) : bool =
   match a, b with
