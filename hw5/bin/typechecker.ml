@@ -478,6 +478,14 @@ let create_struct_ctxt (p : Ast.prog) : Tctxt.t =
     p
 ;;
 
+let create_builtins_ctxt (tc : Tctxt.t) : Tctxt.t =
+  List.fold_left
+    (fun c (fname, (args, frtyp)) ->
+      add_global c fname (TRef (RFun (args, frtyp))))
+    tc
+    builtins
+;;
+
 let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
   List.fold_left
     (fun c decl ->
@@ -509,7 +517,8 @@ let create_global_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
 *)
 let typecheck_program (p : Ast.prog) : unit =
   let sc = create_struct_ctxt p in
-  let fc = create_function_ctxt sc p in
+  let bc = create_builtins_ctxt sc in
+  let fc = create_function_ctxt bc p in
   let tc = create_global_ctxt fc p in
   List.iter
     (fun p ->
