@@ -345,7 +345,7 @@ let rec typecheck_stmt (tc : Tctxt.t) (s : Ast.stmt node) (to_ret : ret_ty)
     (match t with
      | TNullRef t' ->
        if not @@ subtype tc (TRef t') (TRef rt) then type_error s "typ_ifq";
-       let tc' = Tctxt.add_local tc id t in
+       let tc' = Tctxt.add_local tc id (TRef t') in
        let _, r1 = typecheck_block tc' block1 to_ret in
        let _, r2 = typecheck_block tc block2 to_ret in
        tc', r1 && r2
