@@ -51,8 +51,7 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
 *)
 let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
   match t1, t2 with
-  | TInt, TInt -> true
-  | TBool, TBool -> true
+  | TInt, TInt | TBool, TBool -> true
   | TNullRef t1, TNullRef t2 | TRef t1, TRef t2 | TRef t1, TNullRef t2 ->
     subtype_ref c t1 t2
   | _ -> false
@@ -115,8 +114,9 @@ and typecheck_refty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.rty) : unit =
   | RString -> ()
   | RArray t -> typecheck_ty l tc t
   | RStruct id ->
-    if Tctxt.lookup_struct_option id tc = None
-    then type_error l "wf_reftokokstruct"
+    (match Tctxt.lookup_struct_option id tc with
+     | Some _ -> ()
+     | None -> type_error l "wf_reftokokstruct")
   | RFun (p, rt) ->
     List.iter (fun t -> typecheck_ty l tc t) p;
     typecheck_retty l tc rt
