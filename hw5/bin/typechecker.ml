@@ -205,6 +205,18 @@ let rec typecheck_stmt (tc : Tctxt.t) (s : Ast.stmt node) (to_ret : ret_ty)
   failwith "todo: implement typecheck_stmt"
 ;;
 
+let typecheck_block (tc : Tctxt.t) (blk : Ast.block) (to_ret : ret_ty)
+  : Tctxt.t * bool
+  =
+  match blk with
+  | hd :: [] -> typecheck_stmt tc hd to_ret
+  | hd :: tl ->
+    let tc', returns = typecheck_stmt tc hd to_ret in
+    if returns then type_error hd "typ_block (typ_stmts)";
+    tc', returns
+  | [] -> tc, true
+;;
+
 (* struct type declarations ------------------------------------------------- *)
 (* Here is an example of how to implement the TYP_TDECLOK rule, which is
    is needed elswhere in the type system.
