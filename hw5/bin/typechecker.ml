@@ -392,7 +392,7 @@ and typecheck_block (tc : Tctxt.t) (blk : Ast.block) (to_ret : ret_ty)
     let tc', returns = typecheck_stmt tc hd to_ret in
     if returns then type_error hd "typ_block (typ_stmts)";
     typecheck_block tc' tl to_ret
-  | [] -> tc, true
+  | [] -> tc, false
 ;;
 
 (* struct type declarations ------------------------------------------------- *)
