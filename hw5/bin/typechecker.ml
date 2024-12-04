@@ -66,7 +66,7 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
     let t2 = Tctxt.lookup_struct id2 c in
     subtype_struct c t1 t2
   | RFun (p1, rt1), RFun (p2, rt2) ->
-    (try List.for_all2 (subtype c) p1 p2 && subtype_ret c rt1 rt2 with
+    (try List.for_all2 (subtype c) p2 p1 && subtype_ret c rt1 rt2 with
      | _ -> false)
   | _ -> false
 
