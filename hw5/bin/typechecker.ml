@@ -268,7 +268,16 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
 *)
 
 let create_struct_ctxt (p : Ast.prog) : Tctxt.t =
-  failwith "todo: create_struct_ctxt"
+  List.fold_left
+    (fun c decl ->
+      match decl with
+      | Gtdecl ({ elt = id, fs } as t) ->
+        if Tctxt.lookup_struct_option id c <> None
+        then type_error t ("multiple definition of struct " ^ id);
+        Tctxt.add_struct c id fs
+      | _ -> c)
+    empty
+    p
 ;;
 
 let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
