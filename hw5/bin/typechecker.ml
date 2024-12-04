@@ -105,7 +105,25 @@ and subtype_ret (c : Tctxt.t) (t1 : Ast.ret_ty) (t2 : Ast.ret_ty) : bool =
    - tc contains the structure definition context
 *)
 let rec typecheck_ty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ty) : unit =
-  failwith "todo: implement typecheck_ty"
+  match t with
+  | TInt | TBool -> ()
+  | TRef t | TNullRef t -> typecheck_refty l tc t
+
+and typecheck_refty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.rty) : unit =
+  match t with
+  | RString -> ()
+  | RArray t -> typecheck_ty l tc t
+  | RStruct id ->
+    if Tctxt.lookup_struct_option id tc = None
+    then type_error l "wf_reftokokstruct"
+  | RFun (p, rt) ->
+    List.iter (fun t -> typecheck_ty l tc t) p;
+    typecheck_retty l tc rt
+
+and typecheck_retty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ret_ty) : unit =
+  match t with
+  | RetVoid -> ()
+  | RetVal t -> typecheck_ty l tc t
 ;;
 
 (* A helper function to determine whether a type allows the null value *)
