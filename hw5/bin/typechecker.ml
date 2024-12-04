@@ -299,10 +299,85 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
 let rec typecheck_stmt (tc : Tctxt.t) (s : Ast.stmt node) (to_ret : ret_ty)
   : Tctxt.t * bool
   =
-  failwith "todo: implement typecheck_stmt"
-;;
+  match s.elt with
+  | Assn (exp1, exp2) ->
+    (match exp1.elt with
+     | Id id ->
+       (match lookup_local_option id tc with
+        | Some _ -> ()
+        | _ ->
+          (match lookup_global_option id tc with
+           | Some (TRef (RFun _)) -> type_error exp1 "typ_assn"
+           | _ -> ()))
+     | _ -> ());
+    let t = typecheck_exp tc exp1 in
+    let t' = typecheck_exp tc exp2 in
+    if not @@ subtype tc t' t then type_error s "typ_assn";
+    tc, false
+  | Decl (id, exp) ->
+    let t = typecheck_exp tc exp in
+    if Tctxt.lookup_local_option id tc <> None then type_error s "typ_decl";
+    let tc' = Tctxt.add_local tc id t in
+    tc', false
+  | SCall (exp, es) ->
+    let t = typecheck_exp tc exp in
+    (match t with
+     | TRef (RFun (p, RetVoid)) ->
+       let ts = List.map (typecheck_exp tc) es in
+       if List.for_all2 (subtype tc) ts p
+       then tc, false
+       else type_error s "typ_scall"
+     | _ -> type_error s "typ_scall")
+  | If (exp, block1, block2) ->
+    let t = typecheck_exp tc exp in
+    if t <> TBool then type_error s "typ_if";
+    let _, r1 = typecheck_block tc block1 to_ret in
+    let _, r2 = typecheck_block tc block2 to_ret in
+    tc, r1 && r2
+  | Cast (rt, id, exp, block1, block2) ->
+    let t = typecheck_exp tc exp in
+    (match t with
+     | TNullRef t' ->
+       if not @@ subtype tc (TRef t') (TRef rt) then type_error s "typ_ifq";
+       let tc' = Tctxt.add_local tc id t in
+       let _, r1 = typecheck_block tc' block1 to_ret in
+       let _, r2 = typecheck_block tc block2 to_ret in
+       tc', r1 && r2
+     | _ -> type_error s "typ_ifq")
+  | While (exp, block) ->
+    if typecheck_exp tc exp <> TBool then type_error s "typ_while";
+    let _ = typecheck_block tc block to_ret in
+    tc, false
+  | For (vdecls, exp, stmt, block) ->
+    let tc' =
+      List.fold_left
+        (fun tc' ((id, { elt = exp; loc }) as node) ->
+          fst @@ typecheck_stmt tc' { elt = Decl node; loc } RetVoid)
+        tc
+        vdecls
+    in
+    exp
+    |> Option.map (fun t ->
+      if typecheck_exp tc' t <> TBool then type_error s "typ_for")
+    |> ignore;
+    stmt
+    |> Option.map (fun t ->
+      if snd @@ typecheck_stmt tc' t to_ret then type_error s "typ_for")
+    |> ignore;
+    typecheck_block tc' block to_ret |> ignore;
+    tc, false
+  | Ret None ->
+    if to_ret <> RetVoid then type_error s "typ_retVoid";
+    tc, true
+  | Ret (Some exp) ->
+    (match to_ret with
+     | RetVoid -> type_error s "typ_retT"
+     | RetVal t ->
+       let t' = typecheck_exp tc exp in
+       if not @@ subtype tc t' t then type_error s "typ_retT";
+       tc, true)
 
-let typecheck_block (tc : Tctxt.t) (blk : Ast.block) (to_ret : ret_ty)
+and typecheck_block (tc : Tctxt.t) (blk : Ast.block) (to_ret : ret_ty)
   : Tctxt.t * bool
   =
   match blk with
