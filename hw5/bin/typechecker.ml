@@ -281,7 +281,16 @@ let create_struct_ctxt (p : Ast.prog) : Tctxt.t =
 ;;
 
 let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+  List.fold_left
+    (fun c decl ->
+      match decl with
+      | Gfdecl ({ elt = { frtyp; fname; args } } as t) ->
+        if Tctxt.lookup_global_option fname c <> None
+        then type_error t ("multiple definition of function " ^ fname);
+        Tctxt.add_global c fname (TRef (RFun (List.map fst args, frtyp)))
+      | _ -> c)
+    tc
+    p
 ;;
 
 let create_global_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
