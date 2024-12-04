@@ -239,7 +239,15 @@ let typecheck_tdecl
    - checks that the function actually returns
 *)
 let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
-  failwith "todo: typecheck_fdecl"
+  let { frtyp; fname; args; body } = f in
+  if args
+     |> List.map (fun (ftyp, fieldName) -> { fieldName; ftyp })
+     |> check_dups
+  then type_error l "typ_fdeclok"
+  else (
+    let tc = List.fold_left (fun tc (ty, id) -> add_local tc id ty) tc args in
+    let _, returns = typecheck_block tc body frtyp in
+    if not returns then type_error l "typ_fdeclok")
 ;;
 
 (* creating the typchecking context ----------------------------------------- *)
