@@ -17,7 +17,7 @@
             zip
           ]
           ++ (with ocaml-ng.ocamlPackages_4_14; [
-            dune_2
+            dune_3
             menhir
             num
             ocaml
