@@ -53,9 +53,8 @@ let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
   match t1, t2 with
   | TInt, TInt -> true
   | TBool, TBool -> true
-  | TNullRef t1, TNullRef t2 -> subtype_ref c t1 t2
-  | TRef t1, TRef t2 -> subtype_ref c t1 t2
-  | TRef t1, TNullRef t2 -> subtype_ref c t1 t2
+  | TNullRef t1, TNullRef t2 | TRef t1, TRef t2 | TRef t1, TNullRef t2 ->
+    subtype_ref c t1 t2
   | _ -> false
 
 (* Decides whether H |-r ref1 <: ref2 *)
