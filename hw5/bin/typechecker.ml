@@ -280,9 +280,9 @@ let create_struct_ctxt (p : Ast.prog) : Tctxt.t =
     (fun c decl ->
       match decl with
       | Gtdecl ({ elt = id, fs } as t) ->
-        if Tctxt.lookup_struct_option id c <> None
+        if lookup_struct_option id c <> None
         then type_error t ("multiple definition of struct " ^ id);
-        Tctxt.add_struct c id fs
+        add_struct c id fs
       | _ -> c)
     empty
     p
@@ -293,9 +293,9 @@ let create_function_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
     (fun c decl ->
       match decl with
       | Gfdecl ({ elt = { frtyp; fname; args } } as t) ->
-        if Tctxt.lookup_global_option fname c <> None
+        if lookup_global_option fname c <> None
         then type_error t ("multiple definition of function " ^ fname);
-        Tctxt.add_global c fname (TRef (RFun (List.map fst args, frtyp)))
+        add_global c fname (TRef (RFun (List.map fst args, frtyp)))
       | _ -> c)
     tc
     p
@@ -306,9 +306,9 @@ let create_global_ctxt (tc : Tctxt.t) (p : Ast.prog) : Tctxt.t =
     (fun c decl ->
       match decl with
       | Gvdecl ({ elt = { name; init } } as t) ->
-        if Tctxt.lookup_global_option name c <> None
+        if lookup_global_option name c <> None
         then type_error t ("multiple definition of global " ^ name);
-        Tctxt.add_global c name (typecheck_exp c init)
+        add_global c name (typecheck_exp c init)
       | _ -> c)
     tc
     p
