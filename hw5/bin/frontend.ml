@@ -444,10 +444,23 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c : Ctxt.t) (e : exp node)
     let ptr_id, tmp_id, call_id =
       gensym "index_ptr", gensym "tmp", gensym "call"
     in
+    let tmp_ty = Ptr (Struct [ I64; arr_ty ]) in
+    (* call oat_assert_array_length *)
+    let assert_code =
+      lift
+        [ tmp_id, Bitcast (arr_ty, arr_op, tmp_ty)
+        ; ( call_id
+          , Ll.Call
+              ( I64
+              , Gid "oat_assert_array_length"
+              , [ tmp_ty, Id tmp_id; I64, ind_op ] ) )
+        ]
+    in
     ( ans_ty
     , Id ptr_id
     , arr_code
       >@ ind_code
+      >@ assert_code
       >@ lift
            [ ( ptr_id
              , Gep
