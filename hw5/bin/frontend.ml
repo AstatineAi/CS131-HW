@@ -351,27 +351,41 @@ let rec cmp_exp (tc : TypeCtxt.t) (c : Ctxt.t) (exp : Ast.exp node)
     let _, size_op, size_code = cmp_exp tc c e in
     let arr_ty, arr_op, alloc_code = oat_alloc_array tc elt_ty size_op in
     arr_ty, arr_op, size_code >@ alloc_code
-  (* ARRAY TASK: Modify the compilation of the NewArrInit construct to implement the 
-     initializer:
-         - the initializer is a loop that uses id as the index
-         - each iteration of the loop the code evaluates e2 and assigns it
-           to the index stored in id.
-
-     Note: You can either write code to generate the LL loop directly, or
-     you could write the loop using abstract syntax and then call cmp_stmt to
-     compile that into LL code...
-  *)
   | Ast.NewArrInit (elt_ty, e1, id, e2) ->
     let _, size_op, size_code = cmp_exp tc c e1 in
     let arr_ty, arr_op, alloc_code = oat_alloc_array tc elt_ty size_op in
-    arr_ty, arr_op, size_code >@ alloc_code
-  (* STRUCT TASK: complete this code that compiles struct expressions.
-      For each field component of the struct
-       - use the TypeCtxt operations to compute getelementptr indices
-       - compile the initializer expression
-       - store the resulting value into the structure
-  *)
-  | Ast.CStruct (id, l) -> failwith "TODO: Ast.CStruct"
+    let ast_const (n : int) = no_loc (Ast.CInt (Int64.of_int n)) in
+    let ast_loop_id = no_loc (Ast.Id id) in
+    let temp_arr = gensym "new_arr_init" in
+    let ast_temp_arr = no_loc (Ast.Id temp_arr) in
+    let alloc_temp_arr : stream =
+      lift [ temp_arr, Alloca arr_ty; "", Store (arr_ty, arr_op, Id temp_arr) ]
+    in
+    let size_id = gensym "size" in
+    let size_var_code =
+      lift [ size_id, Alloca I64; "", Store (I64, size_op, Id size_id) ]
+    in
+    let ast_size = no_loc (Ast.Id size_id) in
+    let c' = Ctxt.add c temp_arr (Ptr arr_ty, Id temp_arr) in
+    let c' = Ctxt.add c' size_id (Ptr I64, Id size_id) in
+    let loop : Ast.stmt node =
+      no_loc
+        (Ast.For
+           ( [ id, ast_const 0 ]
+           , Some (no_loc (Ast.Bop (Ast.Lt, ast_loop_id, ast_size)))
+           , Some
+               (no_loc
+                  (Ast.Assn
+                     ( ast_loop_id
+                     , no_loc (Ast.Bop (Ast.Add, ast_loop_id, ast_const 1)) )))
+           , [ no_loc
+                 (Ast.Assn (no_loc (Ast.Index (ast_temp_arr, ast_loop_id)), e2))
+             ] ))
+    in
+    let _, loop_code = cmp_stmt tc c' Void loop in
+    ( arr_ty
+    , arr_op
+    , size_code >@ alloc_code >@ alloc_temp_arr >@ size_var_code >@ loop_code )
   | Ast.Proj (e, id) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "proj" in
