@@ -205,7 +205,7 @@ let oat_alloc_array ct (t : Ast.ty) (size : Ll.operand)
       ] )
 ;;
 
-(* STRUCT TASK: Complete this helper function that allocates an oat structure on the 
+(* A helper function that allocates an oat structure on the 
    heap and returns a target operand with the appropriate reference.  
    
    - generate a call to 'oat_malloc' and use bitcast to convert the
@@ -215,7 +215,19 @@ let oat_alloc_array ct (t : Ast.ty) (size : Ll.operand)
 *)
 let oat_alloc_struct (ct : TypeCtxt.t) (id : Ast.id) : Ll.ty * operand * stream
   =
-  failwith "TODO: oat_alloc_struct"
+  let fields = TypeCtxt.lookup id ct in
+  let size =
+    List.fold_left (fun acc f -> Int64.add acc (size_oat_ty f.ftyp)) 0L fields
+  in
+  let ans_id, struct_id = gensym "struct", gensym "raw_struct" in
+  let ans_ty = Ptr (Namedt id) in
+  let alloc_code =
+    lift
+      [ struct_id, Call (Ptr I64, Gid "oat_malloc", [ I64, Const size ])
+      ; ans_id, Bitcast (Ptr I64, Id struct_id, ans_ty)
+      ]
+  in
+  ans_ty, Id ans_id, alloc_code
 ;;
 
 let str_arr_ty s = Array (1 + String.length s, I8)
