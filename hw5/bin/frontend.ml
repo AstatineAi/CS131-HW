@@ -422,20 +422,17 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c : Ctxt.t) (e : exp node)
       | _ -> failwith "Unexpected variable type"
     in
     t, op, []
-  (* STRUCT TASK: Complete this code that emits LL code to compute the
-     address of the i'th field from a value of struct type.  Note that
-     the actual load from the address to project the value is handled by the
-     Ast.proj case of the cmp_exp function (above).
-
-     You will find the TypeCtxt.lookup_field_name function helpful.
-  *)
-  | Ast.Proj (e, i) -> failwith "todo: Ast.Proj case of cmp_exp_lhs"
-  (* ARRAY TASK: Modify this index code to call 'oat_assert_array_length' before doing the 
-     GEP calculation. This should be very straightforward, except that you'll need to use a Bitcast.
-     You might want to take a look at the implementation of 'oat_assert_array_length'
-     in runtime.c.   (That check is where the infamous "ArrayIndexOutOfBounds" exception would 
-     be thrown...)
-  *)
+  | Ast.Proj (e, i) ->
+    let st_ty, st_op, st_code = cmp_exp tc c e in
+    (match st_ty with
+     | Ptr (Namedt id) ->
+       let f_ast_ty, ind = TypeCtxt.lookup_field_name id i tc in
+       let f_ty = cmp_ty tc f_ast_ty in
+       let ans_id = gensym "proj" in
+       ( f_ty
+       , Id ans_id
+       , st_code >:: I (ans_id, Gep (st_ty, st_op, [ Const 0L; Const ind ])) )
+     | _ -> failwith "Proj: invalid field access")
   | Ast.Index (e, i) ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
     let _, ind_op, ind_code = cmp_exp tc c i in
