@@ -543,19 +543,35 @@ and cmp_stmt (tc : TypeCtxt.t) (c : Ctxt.t) (rt : Ll.ty) (stmt : Ast.stmt node)
       >@ else_code
       >:: T (Br lm)
       >:: L lm )
-  (* CAST TASK: Fill in this case of the compiler to implement the 'if?' checked
-     null downcast statement.  
-       - check whether the value computed by exp is null, if so jump to
-         the 'null' block, otherwise take the 'notnull' block
-
-       - the identifier id is in scope in the 'notnull' block and so 
-         needs to be allocated (and added to the context)
-
-       - as in the if-the-else construct, you should jump to the common
-         merge label after either block
-  *)
   | Ast.Cast (typ, id, exp, notnull, null) ->
-    failwith "todo: implement Ast.Cast case"
+    let ref_ty, ref_op, ref_code = cmp_exp tc c exp in
+    let null_cond = gensym "null_cond" in
+    let cast_id = gensym "cast" in
+    let notnull_id = gensym id in
+    let notnull_ref_ty = Ptr (cmp_rty tc typ) in
+    let check_null_code =
+      lift
+        [ null_cond, Icmp (Eq, ref_ty, ref_op, Null)
+        ; cast_id, Bitcast (ref_ty, ref_op, notnull_ref_ty)
+        ; notnull_id, Alloca notnull_ref_ty
+        ; "", Store (notnull_ref_ty, Id cast_id, Id notnull_id)
+        ]
+    in
+    let c' = Ctxt.add c id (Ptr notnull_ref_ty, Id notnull_id) in
+    let _, notnull_code = cmp_block tc c' rt notnull in
+    let _, null_code = cmp_block tc c' rt null in
+    let lnot, lnull, lm = gensym "notnull", gensym "null", gensym "merge" in
+    ( c
+    , ref_code
+      >@ check_null_code
+      >:: T (Cbr (Id null_cond, lnull, lnot))
+      >:: L lnot
+      >@ notnull_code
+      >:: T (Br lm)
+      >:: L lnull
+      >@ null_code
+      >:: T (Br lm)
+      >:: L lm )
   | Ast.While (guard, body) ->
     let guard_ty, guard_op, guard_code = cmp_exp tc c guard in
     let lcond, lbody, lpost = gensym "cond", gensym "body", gensym "post" in
