@@ -386,6 +386,25 @@ let rec cmp_exp (tc : TypeCtxt.t) (c : Ctxt.t) (exp : Ast.exp node)
     ( arr_ty
     , arr_op
     , size_code >@ alloc_code >@ alloc_temp_arr >@ size_var_code >@ loop_code )
+  | Ast.CStruct (id, l) ->
+    let st_ty, st_op, alloc_code = oat_alloc_struct tc id in
+    let add_field (fname : id) (exp : exp node) : stream =
+      let ty', idx = TypeCtxt.lookup_field_name id fname tc in
+      let ty = cmp_ty tc ty' in
+      let _, exp_op, exp_code = cmp_exp tc c exp in
+      let field_id = gensym "field" in
+      let field_code =
+        lift
+          [ field_id, Gep (st_ty, st_op, [ Const 0L; Const idx ])
+          ; gensym "store", Store (ty, exp_op, Id field_id)
+          ]
+      in
+      exp_code >@ field_code
+    in
+    let field_code =
+      List.fold_left (fun acc (fname, exp) -> acc >@ add_field fname exp) [] l
+    in
+    st_ty, st_op, alloc_code >@ field_code
   | Ast.Proj (e, id) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "proj" in
