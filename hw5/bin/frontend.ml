@@ -314,11 +314,18 @@ let rec cmp_exp (tc : TypeCtxt.t) (c : Ctxt.t) (exp : Ast.exp node)
        let ans_id = gensym id in
        t, Id ans_id, [ I (ans_id, Load (Ptr t, op)) ]
      | _ -> failwith "broken invariant: identifier not a pointer")
-  (* ARRAY TASK: complete this case to compile the length(e) expression.
-       The emitted code should yield the integer stored as part 
-       of the array struct representation.
-  *)
-  | Ast.Length e -> failwith "todo:implement Ast.Length case"
+  | Ast.Length e ->
+    let arr_ty, arr_op, arr_code = cmp_exp tc c e in
+    let arr_len_id = gensym "arr_len" in
+    let ans_id = gensym "length" in
+    ( I64
+    , Id ans_id
+    , arr_code
+      >@ lift
+           [ ( arr_len_id
+             , Gep (arr_ty, arr_op, [ i64_op_of_int 0; i64_op_of_int 0 ]) )
+           ; ans_id, Load (Ptr I64, Id arr_len_id)
+           ] )
   | Ast.Index (e, i) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "index" in
