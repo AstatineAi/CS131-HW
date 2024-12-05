@@ -767,8 +767,21 @@ let rec cmp_gexp c (tc : TypeCtxt.t) (e : Ast.exp node)
     let final_t = Struct [ I64; Array (0, ll_u) ] in
     let cast = GBitcast (Ptr arr_t, GGid gid, Ptr final_t) in
     (Ptr final_t, cast), (gid, (arr_t, arr_i)) :: gs
-  (* STRUCT TASK: Complete this code that generates the global initializers for a struct value. *)
-  | CStruct (id, cs) -> failwith "todo: Cstruct case of cmp_gexp"
+  | CStruct (id, cs) ->
+    let gid = gensym "global_st" in
+    let fields = TypeCtxt.lookup id tc in
+    let elts, gs, tys =
+      List.fold_right
+        (fun (fname, cst) (elts, gs, tys) ->
+           let f_ty, _ = TypeCtxt.lookup_field_name id fname tc in
+           let gd, gs' = cmp_gexp c tc cst in
+           gd :: elts, gs' @ gs, cmp_ty tc f_ty :: tys)
+        cs
+        ([], [], [])
+    in
+    let final_t = Struct tys in
+    let cast = GBitcast (Ptr final_t, GGid gid, Ptr (Namedt id)) in
+    (Ptr final_t, cast), (gid, (final_t, GStruct elts)) :: gs
   | _ -> failwith "bad global initializer"
 ;;
 
