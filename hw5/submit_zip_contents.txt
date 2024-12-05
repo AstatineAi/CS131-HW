@@ -1,3 +1,4 @@
 bin/frontend.ml
 bin/typechecker.ml
-
+hw5programs/tc_studenttest_pass.oat
+hw5programs/tc_studenttest_fail.oat
