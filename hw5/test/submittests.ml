@@ -1,10 +1,15 @@
 (* The 3 graded student test cases *)
 
+open Testlib
+open Util.Assert
+module Typechecker = Oat.Typechecker
+module Tctxt = Oat.Tctxt
+
 (* Typechecking test cases *)
-let sub_type_case =
+let subtype_tests =
   [ ( "subtype: struct A <: struct B"
     , fun () ->
-        let ctxt : Oat.Tctxt.t =
+        let ctxt : Tctxt.t =
           Typechecker.create_struct_ctxt
             [ Gtdecl
                 { elt =
@@ -70,6 +75,13 @@ let sub_type_case =
 ;;
 
 (* Program test case *)
-let program_test =
+let program_tests =
   [ "hw5programs/studenttest_bst.oat", "", "1064653841854927370" ]
+;;
+
+let student_shared_tests : suite =
+  [ GradedTest ("student shared subtype tests", 1, subtype_tests)
+  ; GradedTest
+      ("student shared program tests", 1, executed_oat_file program_tests)
+  ]
 ;;
