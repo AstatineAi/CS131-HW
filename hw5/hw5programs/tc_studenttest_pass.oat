@@ -1,0 +1,28 @@
+struct A {
+    int x;
+    (int, int) -> int y;
+    string? z;
+    bool n
+}
+
+struct B {
+    int x;
+    (int, int) -> int y;
+    string? z
+}
+
+int plus(int a, int b) {
+    return a + b;
+}
+
+B?[] test(B t) {
+    var b = new B { x = 1; y = plus; z = "hello"};
+    var c = new B?[] { b };
+    return c;
+}
+
+int program(int argc, string[] argv) {
+    var a = new A { x = 1; y = plus; z = string null ; n = true};
+    var discard = test(a);
+    return 0;
+}
