@@ -76,7 +76,8 @@ module Alloc = struct
     | x, Load (t, o) -> Load (f x, t, mo o)
     | _, Store (t, o, o') -> Store (t, mo o, mo o')
     | x, Icmp (c, t, o, o') -> Icmp (f x, c, t, mo o, mo o')
-    | x, Call (t, o, args) -> Call (f x, t, mo o, List.map (fun (t, o) -> t, mo o) args)
+    | x, Call (t, o, args) ->
+      Call (f x, t, mo o, List.map (fun (t, o) -> t, mo o) args)
     | x, Bitcast (t, o, t') -> Bitcast (f x, t, mo o, t')
     | x, Gep (t, o, is) -> Gep (f x, t, mo o, List.map mo is)
   ;;
@@ -124,7 +125,8 @@ module Alloc = struct
     ((e, bs) : Ll.cfg)
     : fbody
     =
-    List.(flatten @@ (of_block f g live_in e :: map (of_lbl_block f g live_in) bs))
+    List.(
+      flatten @@ (of_block f g live_in e :: map (of_lbl_block f g live_in) bs))
   ;;
 end
 
@@ -154,7 +156,8 @@ let prog_of_x86stream : x86stream -> X86.prog =
        | [] -> p
        | _ -> failwith "stream has no initial label")
     | I i :: s' -> loop p (i :: iis) s'
-    | L (l, global) :: s' -> loop ({ lbl = l; global; asm = Text iis } :: p) [] s'
+    | L (l, global) :: s' ->
+      loop ({ lbl = l; global; asm = Text iis } :: p) [] s'
   in
   loop [] []
 ;;
@@ -190,7 +193,9 @@ let caller_save : LocSet.t =
    pointer, but ensures that it is saved/restored.
 *)
 let callee_save : LocSet.t =
-  [ Rbx; R12; R13; R14; R15 ] |> List.map (fun r -> Alloc.LReg r) |> LocSet.of_list
+  [ Rbx; R12; R13; R14; R15 ]
+  |> List.map (fun r -> Alloc.LReg r)
+  |> LocSet.of_list
 ;;
 
 let arg_reg : int -> X86.reg option = function
@@ -209,7 +214,9 @@ let arg_loc (n : int) : Alloc.loc =
   | None -> Alloc.LStk (n - 4)
 ;;
 
-let alloc_fdecl (layout : layout) (liveness : liveness) (f : Ll.fdecl) : Alloc.fbody =
+let alloc_fdecl (layout : layout) (liveness : liveness) (f : Ll.fdecl)
+  : Alloc.fbody
+  =
   let dst = List.map layout.uid_loc f.f_param in
   let tdst = List.combine (fst f.f_ty) dst in
   let movs = List.mapi (fun i (t, x) -> x, t, Alloc.Loc (arg_loc i)) tdst in
@@ -287,7 +294,9 @@ let emit_mov (src : X86.operand) (dst : X86.operand) : x86stream =
    y <- z      y <- z       y <- z     y <- z        POP x        POP x
 *)
 
-let compile_pmov live (ol : (Alloc.loc * Ll.ty * Alloc.operand) list) : x86stream =
+let compile_pmov live (ol : (Alloc.loc * Ll.ty * Alloc.operand) list)
+  : x86stream
+  =
   let open Alloc in
   let module OpSet =
     Set.Make (struct
@@ -300,10 +309,14 @@ let compile_pmov live (ol : (Alloc.loc * Ll.ty * Alloc.operand) list) : x86strea
      The operands that actually need to be moved are those that are
      - not in the right location already, and
      - still live *)
-  let ol' = List.filter (fun (x, _, o) -> Loc x <> o && LocSet.mem x live) ol in
+  let ol' =
+    List.filter (fun (x, _, o) -> Loc x <> o && LocSet.mem x live) ol
+  in
   let rec loop outstream ol =
     (* Find the _set_ of all sources that still need to be moved. *)
-    let srcs = List.fold_left (fun s (_, _, o) -> OpSet.add o s) OpSet.empty ol in
+    let srcs =
+      List.fold_left (fun s (_, _, o) -> OpSet.add o s) OpSet.empty ol
+    in
     match List.partition (fun (x, _, o) -> OpSet.mem (Loc x) srcs) ol with
     | [], [] -> outstream
     (* when no moves are ready to be emitted, push onto stack *)
@@ -325,7 +338,9 @@ let compile_pmov live (ol : (Alloc.loc * Ll.ty * Alloc.operand) list) : x86strea
 
 (* compiling call  ---------------------------------------------------------- *)
 
-let compile_call live (fo : Alloc.operand) (os : (ty * Alloc.operand) list) : x86stream =
+let compile_call live (fo : Alloc.operand) (os : (ty * Alloc.operand) list)
+  : x86stream
+  =
   let oreg, ostk, _ =
     List.fold_left
       (fun (oreg, ostk, i) (t, o) ->
@@ -428,7 +443,8 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
     match af with
     | [] -> outstream
     | (ILbl (LLbl l), _) :: rest -> loop rest @@ (outstream >:: L (l, false))
-    | (PMov ol, live) :: rest -> loop rest @@ (outstream >@ compile_pmov live ol)
+    | (PMov ol, live) :: rest ->
+      loop rest @@ (outstream >@ compile_pmov live ol)
     | (Icmp (LVoid, _, _, _, _), _) :: rest -> loop rest outstream
     | (Binop (LVoid, _, _, _, _), _) :: rest -> loop rest outstream
     | (Alloca (LVoid, _), _) :: rest -> loop rest outstream
@@ -440,8 +456,10 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
       @@ (outstream
           >@ lift
                Asm.
-                 [ Cmpq, [ co o'; ~%o ]; cc c, [ co (Loc x) ]; Andq, [ ~$1; co (Loc x) ] ]
-         )
+                 [ Cmpq, [ co o'; ~%o ]
+                 ; cc c, [ co (Loc x) ]
+                 ; Andq, [ ~$1; co (Loc x) ]
+                 ])
     | (Icmp (x, c, _, o, o'), _) :: rest ->
       loop rest
       @@ (outstream
@@ -453,18 +471,21 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
                  ; Andq, [ ~$1; co (Loc x) ]
                  ])
     (* Shift instructions must use Rcx or Immediate as second arg *)
-    | (Binop (x, bop, _, o, o'), _) :: rest when bop = Shl || bop = Lshr || bop = Ashr ->
+    | (Binop (x, bop, _, o, o'), _) :: rest
+      when bop = Shl || bop = Lshr || bop = Ashr ->
       loop rest
       @@ (outstream
           >@ emit_mov (co o) (Reg Rax)
           >@ emit_mov (co o') (Reg Rcx)
-          >@ lift Asm.[ cb bop, [ ~%Rcx; ~%Rax ]; Movq, [ ~%Rax; co (Loc x) ] ])
+          >@ lift Asm.[ cb bop, [ ~%Rcx; ~%Rax ]; Movq, [ ~%Rax; co (Loc x) ] ]
+         )
     | (Binop (LReg r, bop, _, o, o'), _) :: rest
       when Loc (LReg r) = o'
            && (bop = Add || bop = Mul || bop = And || bop = Or || bop = Xor) ->
       loop rest @@ (outstream >:: I Asm.(cb bop, [ co o; ~%r ]))
     | (Binop (LReg r, b, _, o, o'), _) :: rest when Loc (LReg r) <> o' ->
-      loop rest @@ (outstream >@ emit_mov (co o) (Reg r) >:: I Asm.(cb b, [ co o'; ~%r ]))
+      loop rest
+      @@ (outstream >@ emit_mov (co o) (Reg r) >:: I Asm.(cb b, [ co o'; ~%r ]))
     | (Binop (x, b, _, o, o'), _) :: rest ->
       loop rest
       @@ (outstream
@@ -474,18 +495,23 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
       loop rest
       @@ (outstream
           >@ lift
-               Asm.[ Subq, [ ~$(size_ty tdecls at); ~%Rsp ]; Movq, [ ~%Rsp; co (Loc x) ] ]
-         )
+               Asm.
+                 [ Subq, [ ~$(size_ty tdecls at); ~%Rsp ]
+                 ; Movq, [ ~%Rsp; co (Loc x) ]
+                 ])
     | (Bitcast (x, _, o, _), _) :: rest ->
       loop rest
-      @@ (outstream >@ emit_mov (co o) (Reg Rax) >:: I Asm.(Movq, [ ~%Rax; co (Loc x) ]))
+      @@ (outstream
+          >@ emit_mov (co o) (Reg Rax)
+          >:: I Asm.(Movq, [ ~%Rax; co (Loc x) ]))
     | (Load (LReg x, _, Loc (LReg src)), _) :: rest ->
       loop rest @@ (outstream >:: I Asm.(Movq, [ Ind2 src; ~%x ]))
     | (Load (x, _, src), _) :: rest ->
       loop rest
       @@ (outstream
           >@ emit_mov (co src) (Reg Rax)
-          >@ lift Asm.[ Movq, [ Ind2 Rax; ~%Rax ]; Movq, [ ~%Rax; co (Loc x) ] ])
+          >@ lift
+               Asm.[ Movq, [ Ind2 Rax; ~%Rax ]; Movq, [ ~%Rax; co (Loc x) ] ])
     | (Store (_, Loc (LReg src), Loc (LReg dst)), _) :: rest ->
       loop rest @@ (outstream >:: I Asm.(Movq, [ ~%src; Ind2 dst ]))
     | (Store (_, src, dst), _) :: rest ->
@@ -513,7 +539,10 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
       in
       let () =
         Platform.verb
-        @@ Printf.sprintf "call: %s live = %s\n" (str_operand fo) (str_locset live)
+        @@ Printf.sprintf
+             "call: %s live = %s\n"
+             (str_operand fo)
+             (str_locset live)
       in
       let save = LocSet.(elements @@ inter (remove x live) caller_save) in
       loop rest
@@ -529,19 +558,25 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
           else lift Asm.[ Movq, [ ~%Rax; co (Loc x) ] ])
     | (Ret (_, None), _) :: rest ->
       loop rest
-      @@ (outstream >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
+      @@ (outstream
+          >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
     | (Ret (_, Some o), _) :: rest ->
       loop rest
       @@ (outstream
           >@ emit_mov (co o) (Reg Rax)
           >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
-    | (Br (LLbl l), _) :: rest -> loop rest @@ (outstream >:: I Asm.(Jmp, [ ~$$l ]))
+    | (Br (LLbl l), _) :: rest ->
+      loop rest @@ (outstream >:: I Asm.(Jmp, [ ~$$l ]))
     | (Cbr (Const i, LLbl l1, LLbl l2), _) :: rest ->
       loop rest
-      @@ (outstream >:: if i <> 0L then I Asm.(Jmp, [ ~$$l1 ]) else I Asm.(Jmp, [ ~$$l2 ]))
+      @@ (outstream
+          >::
+          if i <> 0L then I Asm.(Jmp, [ ~$$l1 ]) else I Asm.(Jmp, [ ~$$l2 ]))
     | (Cbr (o, LLbl l1, LLbl l2), _) :: rest ->
       loop rest
-      @@ (outstream >@ lift Asm.[ Cmpq, [ ~$0; co o ]; J Neq, [ ~$$l1 ]; Jmp, [ ~$$l2 ] ])
+      @@ (outstream
+          >@ lift Asm.[ Cmpq, [ ~$0; co o ]; J Neq, [ ~$$l1 ]; Jmp, [ ~$$l2 ] ]
+         )
     | _ -> failwith "codegen failed to find instruction"
   in
   loop af []
@@ -571,9 +606,13 @@ let fold_fdecl
   : 'a
   =
   let fold_params ps a = List.fold_left f_param a ps in
-  let fold_block { insns; term } a = f_term (List.fold_left f_insn a insns) term in
+  let fold_block { insns; term } a =
+    f_term (List.fold_left f_insn a insns) term
+  in
   let fold_lbl_block (l, blk) a = fold_block blk (f_lbl a l) in
-  let fold_lbl_blocks bs a = List.fold_left (fun a b -> fold_lbl_block b a) a bs in
+  let fold_lbl_blocks bs a =
+    List.fold_left (fun a b -> fold_lbl_block b a) a bs
+  in
   let entry, bs = f.f_cfg in
   init
   |> fold_params (List.combine f.f_param (fst f.f_ty))
@@ -638,7 +677,9 @@ let greedy_layout (f : Ll.fdecl) (live : liveness) : layout =
     res
   in
   (* The available palette of registers.  Excludes Rax and Rcx *)
-  let pal = LocSet.(caller_save |> remove (Alloc.LReg Rax) |> remove (Alloc.LReg Rcx)) in
+  let pal =
+    LocSet.(caller_save |> remove (Alloc.LReg Rax) |> remove (Alloc.LReg Rcx))
+  in
   (* Allocates a uid greedily based on liveness information *)
   let allocate lo uid =
     let loc =
@@ -654,7 +695,8 @@ let greedy_layout (f : Ll.fdecl) (live : liveness) : layout =
       with
       | Not_found -> spill ()
     in
-    Platform.verb @@ Printf.sprintf "allocated: %s <- %s\n" (Alloc.str_loc loc) uid;
+    Platform.verb
+    @@ Printf.sprintf "allocated: %s <- %s\n" (Alloc.str_loc loc) uid;
     loc
   in
   let lo =
@@ -662,7 +704,9 @@ let greedy_layout (f : Ll.fdecl) (live : liveness) : layout =
       (fun lo (x, _) -> (x, alloc_arg ()) :: lo)
       (fun lo l -> (l, Alloc.LLbl (Platform.mangle l)) :: lo)
       (fun lo (x, i) ->
-        if insn_assigns i then (x, allocate lo x) :: lo else (x, Alloc.LVoid) :: lo)
+        if insn_assigns i
+        then (x, allocate lo x) :: lo
+        else (x, Alloc.LVoid) :: lo)
       (fun lo _ -> lo)
       []
       f
