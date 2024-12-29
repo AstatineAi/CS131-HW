@@ -363,7 +363,7 @@ let hw4_easy_tests = [
     ("hw4programs/run42.oat", "", "2");
     ("hw4programs/run49.oat", "", "abc0");
     ("hw4programs/run50.oat", "", "abcde0");
-    ("hw4programs/run61.oat", "", "131");
+    ("hw4programs/run61.oat", "", "3410");
 ]
 
 let hw4_medium_tests = [
