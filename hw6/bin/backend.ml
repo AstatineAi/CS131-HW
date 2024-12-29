@@ -352,10 +352,20 @@ let compile_call live (fo : Alloc.operand) (os : (ty * Alloc.operand) list)
   in
   let nstack = List.length ostk in
   let live' = LocSet.of_list @@ List.map (fun (r, _, _) -> r) oreg in
-  lift (List.map (fun o -> Pushq, [ compile_operand o ]) ostk)
+  [ I Asm.(Pushq, [ ~%Rdi ]) ]
+  >:: I Asm.(Pushq, [ ~%Rsi ])
+  >:: I Asm.(Pushq, [ ~%Rdx ])
+  >:: I Asm.(Pushq, [ ~%R08 ])
+  >:: I Asm.(Pushq, [ ~%R09 ])
+  >@ lift (List.map (fun o -> Pushq, [ compile_operand o ]) ostk)
   >@ compile_pmov (LocSet.union live live') oreg
   >:: I Asm.(Callq, [ compile_operand fo ])
   >@ lift (if nstack <= 0 then [] else Asm.[ Addq, [ ~$(nstack * 8); ~%Rsp ] ])
+  >:: I Asm.(Popq, [ ~%R09 ])
+  >:: I Asm.(Popq, [ ~%R08 ])
+  >:: I Asm.(Popq, [ ~%Rdx ])
+  >:: I Asm.(Popq, [ ~%Rsi ])
+  >:: I Asm.(Popq, [ ~%Rdi ])
 ;;
 
 (* compiling getelementptr (gep)  ------------------------------------------- *)
@@ -770,7 +780,80 @@ let greedy_layout (f : Ll.fdecl) (live : liveness) : layout =
 *)
 
 let better_layout (f : Ll.fdecl) (live : liveness) : layout =
-  failwith "Backend.better_layout not implemented"
+  let open Datastructures in
+  let n_spill = ref 0 in
+  let spill () =
+    incr n_spill;
+    Alloc.LStk (- !n_spill)
+  in
+  let n_arg = ref 0 in
+  let alloc_arg () =
+    let res =
+      match arg_loc !n_arg with
+      | Alloc.LReg Rcx -> spill ()
+      | x -> x
+    in
+    incr n_arg;
+    res
+  in
+  let m = ref UidM.empty in
+  let g, ls =
+    fold_fdecl
+      (fun g' (x, _) ->
+        m := UidM.add x (alloc_arg ()) !m;
+        g')
+      (fun g' x ->
+        m := UidM.add x (Alloc.LLbl (Platform.mangle x)) !m;
+        g')
+      (fun (g, ls) (x, i) ->
+        let add_one s x g =
+          let s = UidS.filter (( <> ) x) s in
+          g |> UidM.update_or UidS.empty (UidS.union s) x
+        in
+        let add_all s g = UidS.fold (add_one s) s g in
+        ( g |> add_all @@ live.live_in x |> add_all @@ live.live_out x
+        , UidS.add x ls ))
+      (fun g' _ -> g')
+      (UidM.empty, UidS.empty)
+      f
+  in
+  let ls =
+    ls
+    |> UidS.filter (fun x -> UidM.for_all (fun _ s -> not @@ UidS.mem x s) g)
+    |> UidS.to_seq
+    |> Seq.map (fun x -> x, UidS.empty)
+  in
+  let g = UidM.add_seq ls g in
+  let pal =
+    LocSet.(caller_save |> remove (Alloc.LReg Rax) |> remove (Alloc.LReg Rcx))
+  in
+  let npal = LocSet.cardinal pal in
+  let rec kempe g m : Alloc.loc UidM.t =
+    if UidM.is_empty g
+    then m
+    else (
+      match
+        UidM.find_first_opt (fun x -> UidS.cardinal @@ UidM.find x g < npal) g
+      with
+      | None ->
+        let x, _ = UidM.choose g in
+        let m = UidM.add x (spill ()) m in
+        let g = g |> UidM.remove x |> UidM.map (UidS.remove x) in
+        kempe g m
+      | Some (x, _) ->
+        let g' = g |> UidM.remove x |> UidM.map (UidS.remove x) in
+        let m = kempe g' m in
+        let l =
+          LocSet.find_first_opt
+            (fun l' ->
+              UidS.for_all (fun y -> l' <> UidM.find y m) (UidM.find x g))
+            pal
+        in
+        let l = if Option.is_none l then spill () else Option.get l in
+        UidM.add x l m)
+  in
+  let m = kempe g !m in
+  { uid_loc = (fun x -> UidM.find x m); spill_bytes = 8 * !n_spill }
 ;;
 
 (* register allocation options ---------------------------------------------- *)
