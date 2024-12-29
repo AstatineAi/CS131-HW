@@ -26,7 +26,7 @@ let dce_block (lb : uid -> Liveness.Fact.t) (ab : uid -> Alias.fact) (b : Ll.blo
   =
   let check_dead (u : uid) (i : insn) : bool =
     match i with
-    | Call _ -> false
+    | Call _ | Store (_, _, Gid _) -> false
     | Store (_, _, Id v) ->
       let dest_live = UidS.mem v @@ lb u in
       let dest_alias =
