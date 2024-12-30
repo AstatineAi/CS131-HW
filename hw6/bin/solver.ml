@@ -95,7 +95,8 @@ module Make (Fact : FACT) (Graph : DFA_GRAPH with type fact := Fact.t) = struct
         let n = NS.choose workset in
         let rest = NS.remove n workset in
         let inflow =
-          Fact.combine (List.map (fun p -> Graph.out g p) (NS.elements (Graph.preds g n)))
+          Fact.combine
+            (List.map (fun p -> Graph.out g p) (NS.elements (Graph.preds g n)))
         in
         let new_out = Graph.flow g n inflow in
         if Fact.compare new_out (Graph.out g n) <> 0

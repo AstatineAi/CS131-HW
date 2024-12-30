@@ -21,7 +21,10 @@ open Datastructures
 
    Hint: Consider using List.filter
  *)
-let dce_block (lb : uid -> Liveness.Fact.t) (ab : uid -> Alias.fact) (b : Ll.block)
+let dce_block
+      (lb : uid -> Liveness.Fact.t)
+      (ab : uid -> Alias.fact)
+      (b : Ll.block)
   : Ll.block
   =
   let check_dead (u : uid) (i : insn) : bool =

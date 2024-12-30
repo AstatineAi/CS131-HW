@@ -103,13 +103,18 @@ module Fact = struct
   let forwards = true
   let insn_flow = insn_flow
   let terminator_flow = terminator_flow
-  let normalize : fact -> fact = UidM.filter (fun _ v -> v != SymConst.UndefConst)
+
+  let normalize : fact -> fact =
+    UidM.filter (fun _ v -> v != SymConst.UndefConst)
+  ;;
 
   let compare (d : fact) (e : fact) : int =
     UidM.compare SymConst.compare (normalize d) (normalize e)
   ;;
 
-  let to_string : fact -> string = UidM.to_string (fun _ v -> SymConst.to_string v)
+  let to_string : fact -> string =
+    UidM.to_string (fun _ v -> SymConst.to_string v)
+  ;;
 
   (* The constprop analysis should take the meet over predecessors to compute the
        flow into a node. You may find the UidM.merge function useful *)
@@ -121,7 +126,8 @@ module Fact = struct
       | Some (SymConst.Const i1), Some (SymConst.Const i2) ->
         if Int64.equal i1 i2 then c1 else Some SymConst.NonConst
       | Some SymConst.UndefConst, c | c, Some SymConst.UndefConst -> c
-      | Some SymConst.NonConst, _ | _, Some SymConst.NonConst -> Some SymConst.NonConst
+      | Some SymConst.NonConst, _ | _, Some SymConst.NonConst ->
+        Some SymConst.NonConst
       | Some c, None | None, Some c -> Some c
       | None, None -> None
     in
@@ -141,7 +147,10 @@ let analyze (g : Cfg.t) : Graph.t =
   (* the flow into the entry node should indicate that any parameter to the
      function is not a constant *)
   let cp_in =
-    List.fold_right (fun (u, _) -> UidM.add u SymConst.NonConst) g.Cfg.args UidM.empty
+    List.fold_right
+      (fun (u, _) -> UidM.add u SymConst.NonConst)
+      g.Cfg.args
+      UidM.empty
   in
   let fg = Graph.of_cfg init cp_in g in
   Solver.solve fg

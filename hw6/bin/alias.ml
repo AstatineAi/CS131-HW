@@ -49,7 +49,7 @@ let insn_flow ((u, i) : uid * insn) (d : fact) : fact =
     in
     List.fold_left
       (fun acc (t, v) ->
-         match (t, v) with
+         match t, v with
          | Ptr _, Id v -> UidM.add v SymPtr.MayAlias acc
          | _ -> acc)
       fact_ret
@@ -70,13 +70,17 @@ module Fact = struct
 
   (* UndefAlias is logically the same as not having a mapping in the fact. To
        compare dataflow facts, we first remove all of these *)
-  let normalize : fact -> fact = UidM.filter (fun _ v -> v != SymPtr.UndefAlias)
+  let normalize : fact -> fact =
+    UidM.filter (fun _ v -> v != SymPtr.UndefAlias)
+  ;;
 
   let compare (d : fact) (e : fact) : int =
     UidM.compare SymPtr.compare (normalize d) (normalize e)
   ;;
 
-  let to_string : fact -> string = UidM.to_string (fun _ v -> SymPtr.to_string v)
+  let to_string : fact -> string =
+    UidM.to_string (fun _ v -> SymPtr.to_string v)
+  ;;
 
   (* TASK: complete the "combine" operation for alias analysis.
 
