@@ -797,6 +797,10 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
     res
   in
   let m = ref UidM.empty in
+  let maybe_alloc x r =
+    if not (UidM.exists (fun x v -> v = Alloc.LReg r) !m)
+    then m := UidM.add x (Alloc.LReg r) !m
+  in
   let g, ls =
     fold_fdecl
       (fun g' (x, _) ->
@@ -806,6 +810,16 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
         m := UidM.add x (Alloc.LLbl (Platform.mangle x)) !m;
         g')
       (fun (g, ls) (x, i) ->
+        (match i with
+         | Call (_, _, l) ->
+           List.init (List.length l) (fun i -> i)
+           |> List.iter2
+                (fun _ k ->
+                  match arg_reg k with
+                  | Some r -> maybe_alloc x r
+                  | None -> ())
+                l
+         | _ -> ());
         let add_one s x g =
           let s = UidS.filter (( <> ) x) s in
           g |> UidM.update_or UidS.empty (UidS.union s) x
@@ -813,7 +827,11 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
         let add_all s g = UidS.fold (add_one s) s g in
         ( g |> add_all @@ live.live_in x |> add_all @@ live.live_out x
         , UidS.add x ls ))
-      (fun g' _ -> g')
+      (fun g' (_, t) ->
+        (match t with
+         | Ret (_, Some (Id x)) -> maybe_alloc x Rax
+         | _ -> ());
+        g')
       (UidM.empty, UidS.empty)
       f
   in
@@ -829,28 +847,36 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
   in
   let npal = LocSet.cardinal pal in
   let rec kempe g m : Alloc.loc UidM.t =
-    if UidM.is_empty g
+    if UidM.is_empty g || UidM.for_all (fun x _ -> UidM.find_opt x m <> None) g
     then m
     else (
-      match
-        UidM.find_first_opt (fun x -> UidS.cardinal @@ UidM.find x g < npal) g
-      with
-      | None ->
-        let x, _ = UidM.choose g in
-        let m = UidM.add x (spill ()) m in
-        let g = g |> UidM.remove x |> UidM.map (UidS.remove x) in
-        kempe g m
-      | Some (x, _) ->
-        let g' = g |> UidM.remove x |> UidM.map (UidS.remove x) in
-        let m = kempe g' m in
-        let l =
-          LocSet.find_first_opt
-            (fun l' ->
-              UidS.for_all (fun y -> l' <> UidM.find y m) (UidM.find x g))
-            pal
-        in
-        let l = if Option.is_none l then spill () else Option.get l in
-        UidM.add x l m)
+      let x =
+        match
+          UidM.find_first_opt
+            (fun x ->
+              UidM.find_opt x m = None && UidS.cardinal @@ UidM.find x g < npal)
+            g
+        with
+        | Some (x, _) -> x
+        | None ->
+          let x, s = UidM.choose g in
+          let chk k d x =
+            if UidM.find_opt x m = None && UidS.cardinal s < UidS.cardinal d
+            then k
+            else x
+          in
+          UidM.fold chk g x
+      in
+      let g' = g |> UidM.remove x |> UidM.map (UidS.remove x) in
+      let m = kempe g' m in
+      let l =
+        LocSet.find_first_opt
+          (fun l' ->
+            UidS.for_all (fun y -> l' <> UidM.find y m) (UidM.find x g))
+          pal
+      in
+      let l = if Option.is_none l then spill () else Option.get l in
+      UidM.add x l m)
   in
   let m = kempe g !m in
   { uid_loc = (fun x -> UidM.find x m); spill_bytes = 8 * !n_spill }
