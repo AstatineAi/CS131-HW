@@ -192,10 +192,10 @@ let caller_save : LocSet.t =
    the special case of through registers.  It uses R15 as a function
    pointer, but ensures that it is saved/restored.
 *)
+let callee_save_regs = [ Rbx; R12; R13; R14; R15 ]
+
 let callee_save : LocSet.t =
-  [ Rbx; R12; R13; R14; R15 ]
-  |> List.map (fun r -> Alloc.LReg r)
-  |> LocSet.of_list
+  callee_save_regs |> List.map (fun r -> Alloc.LReg r) |> LocSet.of_list
 ;;
 
 let arg_reg : int -> X86.reg option = function
@@ -431,7 +431,7 @@ let compile_getelementptr
 
 (* compiling instructions within function bodies ---------------------------- *)
 
-let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
+let compile_fbody tdecls (af : Alloc.fbody) (csrl : int) : x86stream =
   let rec loop (af : Alloc.fbody) (outstream : x86stream) : x86stream =
     let cb = function
       | Ll.Add -> Addq
@@ -576,6 +576,8 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
           >@ (if Option.is_none o
               then []
               else emit_mov (co (Option.get o)) (Reg Rax))
+          >:: I Asm.(Leaq, [ Ind3 (Lit (Int64.of_int (-csrl)), Rbp); ~%Rsp ])
+          >@ List.map (fun r -> I Asm.(Popq, [ ~%r ])) callee_save_regs
           >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
     | (Br (LLbl l), _) :: rest ->
       loop rest @@ (outstream >:: I Asm.(Jmp, [ ~$$l ]))
@@ -845,7 +847,11 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
   in
   let g = UidM.add_seq ls g in
   let pal =
-    LocSet.(caller_save |> remove (Alloc.LReg Rax) |> remove (Alloc.LReg Rcx))
+    LocSet.(
+      caller_save
+      |> union callee_save
+      |> remove (Alloc.LReg Rax)
+      |> remove (Alloc.LReg Rcx))
   in
   let npal = LocSet.cardinal pal in
   let rec kempe g m : Alloc.loc UidM.t =
@@ -972,7 +978,11 @@ let compile_fdecl tdecls (g : gid) (f : Ll.fdecl) : x86stream =
   >@ (if layout.spill_bytes <= 0
       then []
       else lift Asm.[ Subq, [ ~$(layout.spill_bytes); ~%Rsp ] ])
-  >@ compile_fbody tdecls afdecl
+  >@ lift (List.map (fun r -> Asm.(Pushq, [ ~%r ])) callee_save_regs)
+  >@ compile_fbody
+       tdecls
+       afdecl
+       ((8 * LocSet.cardinal callee_save) + layout.spill_bytes)
 ;;
 
 (* compile_gdecl ------------------------------------------------------------ *)
