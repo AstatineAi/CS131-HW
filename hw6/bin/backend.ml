@@ -802,7 +802,7 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
   in
   let m = ref UidM.empty in
   let maybe_alloc x r =
-    if not (UidM.exists (fun x v -> v = Alloc.LReg r) !m)
+    if UidM.for_all (fun _ -> ( <> ) (Alloc.LReg r)) !m
     then m := UidM.add x (Alloc.LReg r) !m
   in
   let g, ls =
@@ -825,7 +825,7 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
                 l
          | _ -> ());
         let add_one s x g =
-          let s = UidS.filter (( <> ) x) s in
+          let s = UidS.remove x s in
           g |> UidM.update_or UidS.empty (UidS.union s) x
         in
         let add_all s g = UidS.fold (add_one s) s g in
@@ -855,7 +855,8 @@ let better_layout (f : Ll.fdecl) (live : liveness) : layout =
   in
   let npal = LocSet.cardinal pal in
   let rec kempe g m : Alloc.loc UidM.t =
-    if UidM.is_empty g || UidM.for_all (fun x _ -> UidM.find_opt x m <> None) g
+    if UidM.is_empty g
+       || UidM.for_all (fun x _ -> UidM.exists (fun y _ -> y = x) m) g
     then m
     else (
       let x =
