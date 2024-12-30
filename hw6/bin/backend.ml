@@ -570,14 +570,12 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
           if t = Ll.Void || x = LVoid || x = LReg Rax
           then []
           else lift Asm.[ Movq, [ ~%Rax; co (Loc x) ] ])
-    | (Ret (_, None), _) :: rest ->
+    | (Ret (_, o), _) :: rest ->
       loop rest
       @@ (outstream
-          >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
-    | (Ret (_, Some o), _) :: rest ->
-      loop rest
-      @@ (outstream
-          >@ emit_mov (co o) (Reg Rax)
+          >@ (if Option.is_none o
+              then []
+              else emit_mov (co (Option.get o)) (Reg Rax))
           >@ lift Asm.[ Movq, [ ~%Rbp; ~%Rsp ]; Popq, [ ~%Rbp ]; Retq, [] ])
     | (Br (LLbl l), _) :: rest ->
       loop rest @@ (outstream >:: I Asm.(Jmp, [ ~$$l ]))
