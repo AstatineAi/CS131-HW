@@ -567,7 +567,7 @@ let compile_fbody tdecls (af : Alloc.fbody) : x86stream =
           >@ lift (List.map (fun x -> Popq, [ co (Loc x) ]) save)
           >@ restore_fp
           >@
-          if t = Ll.Void || x = LVoid
+          if t = Ll.Void || x = LVoid || x = LReg Rax
           then []
           else lift Asm.[ Movq, [ ~%Rax; co (Loc x) ] ])
     | (Ret (_, None), _) :: rest ->
